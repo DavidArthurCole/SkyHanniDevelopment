@@ -9,7 +9,7 @@ import com.intellij.util.PsiErrorElementUtil
 import skyhanni.plugin.services.SkyHanniPluginService
 
 @TestDataPath("\$CONTENT_ROOT/src/test/testData")
-class MyPluginTest : BasePlatformTestCase() {
+class SkyHanniPluginTest : BasePlatformTestCase() {
 
     fun testXMLFile() {
         val psiFile = myFixture.configureByText(XmlFileType.INSTANCE, "<foo>bar</foo>")

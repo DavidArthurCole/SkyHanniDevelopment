@@ -1,27 +1,22 @@
 <html>
 <body>
-Write your description here.
-Start the description with a verb in 3rd person singular, like reports, detects, highlights.
-In the first sentence, briefly explain what exactly the inspection helps you detect.
-Make sure the sentence is not very long and complicated.
+Reports functions that handle SkyHanni events but are missing the <code>@HandleEvent</code> annotation, and flags
+functions annotated with <code>@HandleEvent</code> incorrectly.
 <p>
-    The first sentence must be in a dedicated paragraph separated from the rest of the text. This will make the
-    description easier to read.
-    Make sure the description doesn’t just repeat the inspection title.
-</p>
-<p>
-    See https://plugins.jetbrains.com/docs/intellij/inspections.html#descriptions for more information.
-</p>
-<p>
-    Embed code snippets:
+    A function is considered an event handler if its single parameter extends <code>SkyHanniEvent</code>,
+    or if its name matches a <code>@PrimaryFunction</code> declaration on an event class.
+    The function must also be <code>public</code>.
 </p>
 <pre><code>
-// automatically highlighted according to inspection registration 'language' attribute
+// Missing annotation — will be flagged:
+fun onSomething(event: SkyHanniEvent) { }
+
+// Correct:
+@HandleEvent
+fun onSomething(event: SkyHanniEvent) { }
 </code></pre>
 <!-- tooltip end -->
-<p>Text after this comment will only be shown in the settings of the inspection.</p>
-
-<p>To open related settings directly from the description, add a link with `settings://$` optionally followed by `?$` to
-    pre-select a UI element.</p>
+<p>Also reports <code>@HandleEvent</code> on non-public functions, and on functions that do not take a
+    <code>SkyHanniEvent</code> parameter and have no explicit <code>eventType</code> argument.</p>
 </body>
 </html>
