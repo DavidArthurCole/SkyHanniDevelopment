@@ -47,8 +47,9 @@ class CreateConfigMigrationIntention :
 
     override fun isApplicableTo(element: KtProperty): Boolean =
         element.annotationEntries.any { it.shortName?.asString() == CONFIG_OPTION_ANNOTATION } &&
-                computeConfigPath(element) != null
+            computeConfigPath(element) != null
 
+    @Suppress("ReturnCount")
     override fun applyTo(element: KtProperty, editor: Editor?) {
         val project = element.project
         val factory = KtPsiFactory(project)

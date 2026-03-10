@@ -44,6 +44,7 @@ class NavigateToConfigIntention :
         return dot.receiverExpression.text == "event" && call.calleeExpression?.text == "move"
     }
 
+    @Suppress("ReturnCount")
     override fun applyTo(element: KtStringTemplateExpression, editor: Editor?) {
         val project = element.project
         val path = evaluateStringTemplate(element) ?: run {
@@ -53,12 +54,7 @@ class NavigateToConfigIntention :
         val segments = path.split('.').toMutableList().takeIf { it.isNotEmpty() } ?: return
 
         // Resolve the root class, consuming prefix segments where applicable
-        val rootClassName = when (segments.first()) {
-            "#profile" -> { segments.removeFirst(); PROFILE_STORAGE_CLASS }
-            "#player"  -> { segments.removeFirst(); PLAYER_STORAGE_CLASS }
-            else -> BASE_CONFIG_CLASS
-        }
-
+        val rootClassName = segments.getRootClassName()
         var current = findKtClass(element, rootClassName) ?: run {
             warn(project, "Could not find root class '$rootClassName' for path '$path'")
             return
@@ -83,7 +79,7 @@ class NavigateToConfigIntention :
             }
 
             // Second-to-last and it's a Map — navigate to the map property itself
-            val typeText = prop.typeReference?.text ?: ""
+            val typeText = prop.typeReference?.text.orEmpty()
             if (i == segments.lastIndex - 1 &&
                 (typeText.startsWith("MutableMap") || typeText.startsWith("Map"))
             ) {

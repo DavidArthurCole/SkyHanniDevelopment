@@ -3,3 +3,6 @@ plugins {
 }
 
 rootProject.name = "SkyHanniIntelliJPlugin"
+
+include(":detekt")
+project(":detekt").name = "detekt"

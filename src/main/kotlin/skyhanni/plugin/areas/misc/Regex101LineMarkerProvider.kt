@@ -76,13 +76,10 @@ class Regex101LineMarkerProvider : LineMarkerProvider {
         )
     }
 
-    private fun buildUrl(regex: String, examples: List<String>): String {
-        val testString = examples.joinToString("\n")
-        return "https://regex101.com/?" +
-                "regex=${encode(regex)}" +
-                "&testString=${encode(testString)}" +
-                "&flavor=java"
-    }
+    private fun buildUrl(regex: String, examples: List<String>): String = "https://regex101.com/?" +
+        "regex=${encode(regex)}" +
+        "&testString=${encode(examples.joinToString("\n"))}" +
+        "&flavor=java"
 
     private fun encode(value: String): String =
         URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20")

@@ -4,6 +4,7 @@ import com.intellij.openapi.editor.Editor
 import org.jetbrains.kotlin.idea.codeinsight.api.classic.intentions.SelfTargetingOffsetIndependentIntention
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.jetbrains.kotlin.psi.KtProperty
+import org.jetbrains.kotlin.psi.KtTypeReference
 
 class ConvertConfigToPropertyIntention :
     SelfTargetingOffsetIndependentIntention<KtProperty>(
@@ -24,11 +25,11 @@ class ConvertConfigToPropertyIntention :
         element.valOrVarKeyword.replace(factory.createValKeyword())
 
         // T → Property<T>
-        val oldType = element.typeReference!!
+        val oldType: KtTypeReference = element.typeReference ?: return
         oldType.replace(factory.createType("Property<${oldType.text}>"))
 
         // initializer → Property.of(initializer)
-        val oldInit = element.initializer!!
+        val oldInit = element.initializer ?: return
         element.initializer = factory.createExpression("Property.of(${oldInit.text})")
 
         // Add import if not already present

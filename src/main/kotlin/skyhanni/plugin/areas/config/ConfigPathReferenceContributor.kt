@@ -54,17 +54,13 @@ private class ConfigPathReference(
     element: KtStringTemplateExpression,
 ) : PsiReferenceBase<KtStringTemplateExpression>(element, TextRange(1, element.textLength - 1), true) {
 
+    @Suppress("ReturnCount")
     override fun resolve(): PsiElement? {
         val path = evaluateStringTemplate(element) ?: return null
         val segments = path.split('.').toMutableList().takeIf { it.isNotEmpty() } ?: return null
         val project = element.project
 
-        val rootClassName = when (segments.first()) {
-            "#profile" -> { segments.removeFirst(); PROFILE_STORAGE_CLASS }
-            "#player"  -> { segments.removeFirst(); PLAYER_STORAGE_CLASS }
-            else       -> BASE_CONFIG_CLASS
-        }
-
+        val rootClassName = segments.getRootClassName()
         var current = findKtClass(rootClassName) ?: return null
 
         for ((i, name) in segments.withIndex()) {

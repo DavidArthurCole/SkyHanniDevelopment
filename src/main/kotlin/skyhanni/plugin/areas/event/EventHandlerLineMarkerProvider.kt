@@ -78,23 +78,20 @@ class EventHandlerLineMarkerProvider : LineMarkerProvider {
         if (hasHandleEvent) {
             val annotation = function.annotationEntries
                 .find { it.shortName?.asString() == HANDLE_EVENT_ANNOTATION }
-            val explicitClass = annotation?.valueArguments?.firstOrNull { arg ->
+
+            val eventTypeArgument = annotation?.valueArguments?.firstOrNull { arg ->
                 val name = arg.getArgumentName()?.asName?.asString()
                 name == "eventType" || name == "eventTypes" || name == null
             }
-            ?.getArgumentExpression()
-            ?.let { it as? KtClassLiteralExpression }
-            ?.receiverExpression
-            ?.text
-            ?.substringAfterLast('.')
 
+            val classLiteral = eventTypeArgument?.getArgumentExpression() as? KtClassLiteralExpression
+            val explicitClass = classLiteral?.receiverExpression?.text?.substringAfterLast('.')
             if (explicitClass != null) {
                 val candidates = PsiShortNamesCache.getInstance(function.project)
                     .getClassesByName(explicitClass, scope)
-                val match = candidates.firstOrNull {
+                candidates.firstOrNull {
                     InheritanceUtil.isInheritor(it, SKYHANNI_EVENT_FQN)
-                }
-                if (match != null) return match
+                }?.let { return it }
             }
 
             // Strategy 2: single event parameter
@@ -113,8 +110,8 @@ class EventHandlerLineMarkerProvider : LineMarkerProvider {
         }
 
         // Strategy 3: @PrimaryFunction name match
-        val name = function.name ?: return null
-        val fqn = primaryNameMap[name] ?: return null
-        return facade.findClass(fqn, scope)
+        return primaryNameMap[function.name.orEmpty()]?.let { primaryClassName ->
+            facade.findClass(primaryClassName, scope)
+        }
     }
 }

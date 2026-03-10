@@ -78,15 +78,15 @@ fun findContainingProperty(
         ?: return null
 
     for (ref in ReferencesSearch.search(psiClass, GlobalSearchScope.projectScope(project)).findAll()) {
-        val prop = PsiTreeUtil.getParentOfType(ref.element, KtProperty::class.java) ?: continue
-
         // Must be a class member, not a local variable or function parameter
-        val parentClass = PsiTreeUtil.getParentOfType(prop, KtClassOrObject::class.java) ?: continue
-        if (parentClass == kClass) continue
-        if (parentClass.fqName?.asString()?.startsWith(BASE_CONFIG_PKG) != true) continue
-        if (prop.parent !is org.jetbrains.kotlin.psi.KtClassBody) continue
-
-        return Pair(prop.name ?: continue, parentClass)
+        PsiTreeUtil.getParentOfType(ref.element, KtProperty::class.java)?.let { prop ->
+            PsiTreeUtil.getParentOfType(prop, KtClassOrObject::class.java)?.let { parentClass ->
+                val parentFqName = parentClass.fqName?.asString() ?: return@let
+                if (!parentFqName.startsWith(BASE_CONFIG_PKG)) return@let
+                if (prop.parent !is org.jetbrains.kotlin.psi.KtClassBody) return@let
+                return Pair(prop.name ?: return@let, parentClass)
+            }
+        }
     }
     return null
 }
@@ -138,16 +138,20 @@ fun findPropertyInHierarchy(kClass: KtClassOrObject, name: String, project: Proj
     if (direct != null) return Pair(direct, false)
 
     val scope = GlobalSearchScope.projectScope(project)
-    for (superEntry in kClass.superTypeListEntries) {
-        val rawType = superEntry.typeReference?.text
-            ?.substringBefore('<')?.substringBefore('?') ?: continue
-        val superPsi = PsiShortNamesCache.getInstance(project)
-            .getClassesByName(rawType, scope)
-            .firstOrNull { it.qualifiedName?.startsWith(BASE_CONFIG_PKG) == true }
-            ?: continue
-        val superKt = superPsi.navigationElement as? KtClassOrObject ?: continue
-        val found = findPropertyInHierarchy(superKt, name, project) ?: continue
-        return Pair(found.first, true)
+    return kClass.superTypeListEntries.firstNotNullOfOrNull entries@{ superEntry ->
+        val wholeRawType = superEntry.typeReference?.text ?: return@entries null
+        val rawType = wholeRawType.substringBefore('<').substringBefore('?')
+        val superPsi = PsiShortNamesCache.getInstance(project).getClassesByName(rawType, scope).firstOrNull {
+            it.qualifiedName?.startsWith(BASE_CONFIG_PKG) == true
+        } ?: return@entries null
+        val superKt = superPsi.navigationElement as? KtClassOrObject ?: return@entries null
+        val found = findPropertyInHierarchy(superKt, name, project) ?: return@entries null
+        Pair(found.first, true)
     }
-    return null
+}
+
+fun MutableList<String>.getRootClassName(): String = when (this.first()) {
+    "#profile" -> PROFILE_STORAGE_CLASS.also { removeFirst() }
+    "#player" -> PLAYER_STORAGE_CLASS.also { removeFirst() }
+    else -> BASE_CONFIG_CLASS
 }
