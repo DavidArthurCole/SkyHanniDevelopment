@@ -12,6 +12,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.idea.codeinsight.api.classic.inspections.AbstractKotlinInspection
+import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtVisitorVoid
 import java.awt.datatransfer.StringSelection
@@ -26,14 +27,16 @@ class CopyConfigPathInspection : AbstractKotlinInspection() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor =
         object : KtVisitorVoid() {
             override fun visitProperty(property: KtProperty) {
-                if (property.annotationEntries.any { it.shortName?.asString() == CONFIG_OPTION_ANNOTATION }) {
-                    holder.registerProblem(
-                        property.nameIdentifier ?: property,
-                        "Copy config path",
-                        ProblemHighlightType.INFORMATION,
-                        CopyConfigPathFix()
-                    )
-                }
+                if (property.annotationEntries.none { it.shortName?.asString() == CONFIG_OPTION_ANNOTATION }) return
+                val containingClass = PsiTreeUtil.getParentOfType(property, KtClassOrObject::class.java) ?: return
+                if (containingClass.isAbstract()) return
+
+                holder.registerProblem(
+                    property.nameIdentifier ?: property,
+                    "Copy config path",
+                    ProblemHighlightType.INFORMATION,
+                    CopyConfigPathFix()
+                )
             }
         }
 }

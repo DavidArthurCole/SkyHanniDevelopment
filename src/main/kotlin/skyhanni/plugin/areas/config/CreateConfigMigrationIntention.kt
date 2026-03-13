@@ -27,9 +27,9 @@ private const val MIGRATOR_VERSION_CONST = "CONFIG_VERSION"
 private const val MIGRATOR_FQN_PREFIX = "at.hannibal2.skyhanni"
 
 /**
- * Activates on `@ConfigOption` properties. Inserts an `event.move(...)` call
- * into the containing class's `onConfigFix` handler, creating the companion
- * object and function if they don't already exist.
+ * Activates on `@ConfigOption` properties in non-abstract classes. Inserts an
+ * `event.move(...)` call into the containing class's `onConfigFix` handler,
+ * creating the companion object and function if they don't already exist.
  *
  * Reads and — if this is the first migration in the current batch — increments
  * `ConfigUpdaterMigrator.CONFIG_VERSION`. A batch is identified by scanning for
@@ -45,9 +45,11 @@ class CreateConfigMigrationIntention :
     override fun generatePreview(project: Project, editor: Editor, file: PsiFile): IntentionPreviewInfo =
         IntentionPreviewInfo.EMPTY
 
-    override fun isApplicableTo(element: KtProperty): Boolean =
-        element.annotationEntries.any { it.shortName?.asString() == CONFIG_OPTION_ANNOTATION } &&
-            computeConfigPath(element) != null
+    override fun isApplicableTo(element: KtProperty): Boolean {
+        if (element.annotationEntries.none { it.shortName?.asString() == CONFIG_OPTION_ANNOTATION }) return false
+        val containingClass = PsiTreeUtil.getParentOfType(element, KtClassOrObject::class.java) ?: return false
+        return !containingClass.isAbstract()
+    }
 
     @Suppress("ReturnCount")
     override fun applyTo(element: KtProperty, editor: Editor?) {

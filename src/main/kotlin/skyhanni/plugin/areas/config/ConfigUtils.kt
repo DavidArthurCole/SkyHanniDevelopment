@@ -1,14 +1,15 @@
 package skyhanni.plugin.areas.config
 
 import com.intellij.openapi.project.Project
-import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiShortNamesCache
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.KtBlockStringTemplateEntry
+import org.jetbrains.kotlin.psi.KtClassBody
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtFunctionLiteral
 import org.jetbrains.kotlin.psi.KtLiteralStringTemplateEntry
@@ -16,7 +17,6 @@ import org.jetbrains.kotlin.psi.KtNameReferenceExpression
 import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtSimpleNameStringTemplateEntry
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
-import kotlin.collections.setOf
 
 const val CONFIG_OPTION_ANNOTATION = "ConfigOption"
 
@@ -38,12 +38,14 @@ val ROOT_CONFIG_FQNS = setOf(BASE_CONFIG_CLASS, PROFILE_STORAGE_CLASS, PLAYER_ST
  */
 const val STRIP_PREFIX = "modules.editor."
 
+fun KtClassOrObject.isAbstract() = hasModifier(KtTokens.ABSTRACT_KEYWORD)
+
 /**
  * Walks up the config class hierarchy via reverse reference search,
  * building a dotted path from the nearest root class down to [prop].
  *
  * Returns e.g. `"inventory.items.slot"` with [STRIP_PREFIX] removed,
- * or `null` if the property name is unavailable.
+ * or `null` if the property is in an abstract class or the name is unavailable.
  */
 fun computeConfigPath(prop: KtProperty): String? {
     val project = prop.project
@@ -51,6 +53,8 @@ fun computeConfigPath(prop: KtProperty): String? {
     segments.add(prop.name ?: return null)
 
     var currentClass = PsiTreeUtil.getParentOfType(prop, KtClassOrObject::class.java)
+    if (currentClass?.isAbstract() == true) return null
+
     while (currentClass != null) {
         if (currentClass.fqName?.asString() in ROOT_CONFIG_FQNS) break
         val (propertyName, parentClass) = findContainingProperty(currentClass, project) ?: break
@@ -66,27 +70,20 @@ fun computeConfigPath(prop: KtProperty): String? {
  * Given a config class, finds the property in another class whose type
  * references this class — i.e. walks one level up the config tree.
  *
+ * Searches directly on the [KtClassOrObject] so that Kotlin-indexed type
+ * references (which are not tied to the Java light class) are found correctly.
+ *
  * Returns `Pair(propertyName, containingClass)`, or `null` if at the root.
  */
-fun findContainingProperty(
-    kClass: KtClassOrObject,
-    project: Project,
-): Pair<String, KtClassOrObject>? {
-    val fqName = kClass.fqName?.asString() ?: return null
-    val psiClass = JavaPsiFacade.getInstance(project)
-        .findClass(fqName, GlobalSearchScope.allScope(project))
-        ?: return null
-
-    for (ref in ReferencesSearch.search(psiClass, GlobalSearchScope.projectScope(project)).findAll()) {
-        // Must be a class member, not a local variable or function parameter
-        PsiTreeUtil.getParentOfType(ref.element, KtProperty::class.java)?.let { prop ->
-            PsiTreeUtil.getParentOfType(prop, KtClassOrObject::class.java)?.let { parentClass ->
-                val parentFqName = parentClass.fqName?.asString() ?: return@let
-                if (!parentFqName.startsWith(BASE_CONFIG_PKG)) return@let
-                if (prop.parent !is org.jetbrains.kotlin.psi.KtClassBody) return@let
-                return Pair(prop.name ?: return@let, parentClass)
-            }
-        }
+fun findContainingProperty(kClass: KtClassOrObject, project: Project): Pair<String, KtClassOrObject>? {
+    if (kClass.fqName == null) return null
+    for (ref in ReferencesSearch.search(kClass, GlobalSearchScope.projectScope(project)).findAll()) {
+        val prop = PsiTreeUtil.getParentOfType(ref.element, KtProperty::class.java) ?: continue
+        val parentClass = PsiTreeUtil.getParentOfType(prop, KtClassOrObject::class.java) ?: continue
+        val parentFqName = parentClass.fqName?.asString() ?: continue
+        if (!parentFqName.startsWith(BASE_CONFIG_PKG)) continue
+        if (prop.parent !is KtClassBody) continue
+        return Pair(prop.name ?: continue, parentClass)
     }
     return null
 }
@@ -150,7 +147,7 @@ fun findPropertyInHierarchy(kClass: KtClassOrObject, name: String, project: Proj
     }
 }
 
-fun MutableList<String>.getRootClassName(): String = when (this.first()) {
+fun MutableList<String>.getRootClassName(): String = when (first()) {
     "#profile" -> PROFILE_STORAGE_CLASS.also { removeFirst() }
     "#player" -> PLAYER_STORAGE_CLASS.also { removeFirst() }
     else -> BASE_CONFIG_CLASS
