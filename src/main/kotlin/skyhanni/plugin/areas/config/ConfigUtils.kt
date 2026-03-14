@@ -147,6 +147,7 @@ fun findContainingProperty(kClass: KtClassOrObject, project: Project): Containin
             val prop = PsiTreeUtil.getParentOfType(ref.element, KtProperty::class.java) ?: continue
             val parentClass = PsiTreeUtil.getParentOfType(prop, KtClassOrObject::class.java) ?: continue
             if (parentClass.fqName?.asString()?.startsWith(BASE_CONFIG_PKG) != true) continue
+            if (parentClass.fqName?.asString() == fqName) continue
             if (prop.parent !is KtClassBody) continue
             return ContainingPropertyResult(prop.name ?: continue, parentClass, prop)
         }

@@ -12,9 +12,7 @@ import com.intellij.codeInsight.hints.presentation.BasePresentation
 import com.intellij.codeInsight.hints.presentation.InlayPresentation
 import com.intellij.lang.documentation.ide.impl.DocumentationManager
 import com.intellij.lang.documentation.psi.psiDocumentationTargets
-import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.actionSystem.PlatformCoreDataKeys
+import com.intellij.model.Pointer
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.editor.Editor
@@ -22,7 +20,8 @@ import com.intellij.openapi.editor.colors.EditorFontType
 import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.platform.backend.documentation.DocumentationTarget
-import com.intellij.platform.ide.documentation.DOCUMENTATION_TARGETS
+import com.intellij.platform.backend.documentation.impl.DocumentationRequest
+import com.intellij.platform.backend.presentation.TargetPresentation
 import com.intellij.psi.NavigatablePsiElement
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -56,8 +55,6 @@ private val HINT_HOVER_COLOR = JBColor(Color(88, 157, 246), Color(88, 157, 246))
  * - Each dot-separated segment is a clickable link navigating to its definition.
  * - The last segment (the property itself) is non-clickable and slightly darker.
  * - Hovering a link segment for 400 ms opens the standard documentation popup via [DocumentationManager].
- *
- * plugin.xml: register under com.intellij.codeInsight.hints.inlayProvider.
  */
 @Suppress("UnstableApiUsage")
 class ConfigPathInlayHintsProvider : InlayHintsProvider<NoSettings> {
@@ -123,7 +120,7 @@ class ConfigPathInlayHintsProvider : InlayHintsProvider<NoSettings> {
             val fontMetrics = editor.component.getFontMetrics(editor.colorsScheme.getFont(EditorFontType.PLAIN))
             return factory.inset(
                 factory.seq(gap, factory.roundWithBackground(factory.seq(*parts.toTypedArray()))),
-                top = (editor.lineHeight - fontMetrics.height) / 2
+                top = -((editor.lineHeight - fontMetrics.height) / 2)
             )
         }
     }
@@ -142,6 +139,7 @@ private class SegmentPresentation(
     private val fontMetrics by lazy { editor.component.getFontMetrics(font) }
     private var docTimer: Timer? = null
     private var pendingDoc: java.util.concurrent.Future<*>? = null
+    private var lastScreenPoint: Point? = null
 
     override val width get() = fontMetrics.stringWidth(label)
     override val height: Int get() = fontMetrics.height
@@ -158,6 +156,7 @@ private class SegmentPresentation(
 
     override fun mouseMoved(event: MouseEvent, translated: Point) {
         if (target == null || hovered) return
+        lastScreenPoint = event.locationOnScreen
         hovered = true
         fireContentChanged(Rectangle(width, height))
         editor.contentComponent.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
@@ -169,6 +168,7 @@ private class SegmentPresentation(
         docTimer = null
         pendingDoc?.cancel(true)
         pendingDoc = null
+        lastScreenPoint = null
         if (!hovered) return
         hovered = false
         fireContentChanged(Rectangle(width, height))
@@ -176,50 +176,55 @@ private class SegmentPresentation(
         dismissDocPopup()
     }
 
-    private fun dismissDocPopup() {
-        val project = editor.project ?: return
+    private fun docPopup(): JBPopup? {
+        val project = editor.project ?: return null
         val manager = DocumentationManager.getInstance(project)
-        val getPopup = manager::class.java.declaredMethods
+        return manager::class.java.declaredMethods
             .firstOrNull { it.name == "getPopup" && it.parameterCount == 0 }
             ?.also { it.isAccessible = true }
             ?.invoke(manager) as? JBPopup
-        getPopup?.cancel()
     }
+
+    private fun dismissDocPopup() = docPopup()?.cancel()
 
     private fun showDocPopup() {
         val project = editor.project ?: return
-        pendingDoc = ReadAction.nonBlocking<DocumentationTarget?> {
+        val screenPoint = lastScreenPoint ?: return
+        pendingDoc = ReadAction.nonBlocking<DocumentationRequest?> {
             if (!hovered) return@nonBlocking null
-            psiDocumentationTargets(target!!, null).firstOrNull()
-        }.finishOnUiThread(ModalityState.defaultModalityState()) { docTarget ->
+            val docTarget = psiDocumentationTargets(target!!, null).firstOrNull() ?: return@nonBlocking null
+
+            @Suppress("UNCHECKED_CAST")
+            val pointer = docTarget::class.java.getMethod("createPointer").invoke(docTarget)
+                    as Pointer<out DocumentationTarget>
+            val presentation = docTarget::class.java.getMethod("computePresentation").invoke(docTarget)
+                    as TargetPresentation
+
+            DocumentationRequest(pointer, presentation)
+        }.finishOnUiThread(ModalityState.defaultModalityState()) { request ->
             pendingDoc = null
-            if (docTarget == null || !hovered) return@finishOnUiThread
-            val context = DataContext { key ->
-                when (key) {
-                    CommonDataKeys.EDITOR.name -> editor
-                    CommonDataKeys.PROJECT.name -> project
-                    PlatformCoreDataKeys.CONTEXT_COMPONENT.name -> editor.contentComponent
-                    DOCUMENTATION_TARGETS.name -> listOf(docTarget)
-                    else -> null
-                }
-            }
+            if (request == null || !hovered) return@finishOnUiThread
+            dismissDocPopup()
             val manager = DocumentationManager.getInstance(project)
-            val candidates = manager::class.java.declaredMethods
-                .filter { it.name == "actionPerformed" }
-                .onEach { it.isAccessible = true }
-
-            val method = candidates.firstOrNull {
-                it.parameterTypes.firstOrNull() == DataContext::class.java
-            } ?: run {
-                val candidateString = candidates.joinToString("\n") { m ->
-                    "  ${m.name}(${m.parameterTypes.joinToString { it.simpleName }})"
-                }
-                error("No actionPerformed(DataContext, ...) overload found. Available overloads:\n$candidateString")
-            }
-
-            val extraArgs = arrayOfNulls<Any?>(method.parameterCount - 1)
+            val componentLocation = editor.contentComponent.locationOnScreen
+            val popupPoint = Point(
+                screenPoint.x - componentLocation.x,
+                screenPoint.y - componentLocation.y + editor.lineHeight,
+            )
             try {
-                method.invoke(manager, context, *extraArgs)
+                val inlineCtxClass = Class.forName("com.intellij.lang.documentation.ide.impl.InlinePopupContext")
+                val inlineCtx = inlineCtxClass.getDeclaredConstructors().first()
+                    .also { it.isAccessible = true }
+                    .newInstance(project, editor, popupPoint)
+                val showDocumentation = manager::class.java.declaredMethods
+                    .first { it.name == "showDocumentation" && it.parameterTypes.firstOrNull() == List::class.java }
+                    .also { it.isAccessible = true }
+                showDocumentation.invoke(
+                    manager,
+                    listOf(request),
+                    inlineCtx,
+                    *arrayOfNulls(showDocumentation.parameterCount - 2)
+                )
             } catch (e: java.lang.reflect.InvocationTargetException) {
                 throw e.cause ?: e
             }
