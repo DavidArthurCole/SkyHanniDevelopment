@@ -14,11 +14,13 @@ import com.intellij.lang.documentation.ide.impl.DocumentationManager
 import com.intellij.lang.documentation.psi.psiDocumentationTargets
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.actionSystem.PlatformCoreDataKeys
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.colors.EditorFontType
 import com.intellij.openapi.editor.markup.TextAttributes
+import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.platform.backend.documentation.DocumentationTarget
 import com.intellij.platform.ide.documentation.DOCUMENTATION_TARGETS
 import com.intellij.psi.NavigatablePsiElement
@@ -118,7 +120,11 @@ class ConfigPathInlayHintsProvider : InlayHintsProvider<NoSettings> {
             }
             // Gap provides left padding between the code text and the hint box
             val gap = SegmentPresentation(" ", null, editor, HINT_COLOR)
-            return factory.seq(gap, factory.roundWithBackground(factory.seq(*parts.toTypedArray())))
+            val fontMetrics = editor.component.getFontMetrics(editor.colorsScheme.getFont(EditorFontType.PLAIN))
+            return factory.inset(
+                factory.seq(gap, factory.roundWithBackground(factory.seq(*parts.toTypedArray()))),
+                top = (editor.lineHeight - fontMetrics.height) / 2
+            )
         }
     }
 }
@@ -135,8 +141,9 @@ private class SegmentPresentation(
     private val font = editor.colorsScheme.getFont(EditorFontType.PLAIN)
     private val fontMetrics by lazy { editor.component.getFontMetrics(font) }
     private var docTimer: Timer? = null
+    private var pendingDoc: java.util.concurrent.Future<*>? = null
 
-    override val width: Int get() = fontMetrics.stringWidth(label)
+    override val width get() = fontMetrics.stringWidth(label)
     override val height: Int get() = fontMetrics.height
 
     override fun paint(g: Graphics2D, attributes: TextAttributes) {
@@ -154,28 +161,44 @@ private class SegmentPresentation(
         hovered = true
         fireContentChanged(Rectangle(width, height))
         editor.contentComponent.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        docTimer = Timer(400) { showDocPopup() }.also { it.isRepeats = false; it.start() }
+        docTimer = Timer(200) { showDocPopup() }.also { it.isRepeats = false; it.start() }
     }
 
     override fun mouseExited() {
         docTimer?.stop()
         docTimer = null
+        pendingDoc?.cancel(true)
+        pendingDoc = null
         if (!hovered) return
         hovered = false
         fireContentChanged(Rectangle(width, height))
         editor.contentComponent.cursor = Cursor.getDefaultCursor()
+        dismissDocPopup()
+    }
+
+    private fun dismissDocPopup() {
+        val project = editor.project ?: return
+        val manager = DocumentationManager.getInstance(project)
+        val getPopup = manager::class.java.declaredMethods
+            .firstOrNull { it.name == "getPopup" && it.parameterCount == 0 }
+            ?.also { it.isAccessible = true }
+            ?.invoke(manager) as? JBPopup
+        getPopup?.cancel()
     }
 
     private fun showDocPopup() {
         val project = editor.project ?: return
-        ReadAction.nonBlocking<DocumentationTarget?> {
+        pendingDoc = ReadAction.nonBlocking<DocumentationTarget?> {
             if (!hovered) return@nonBlocking null
             psiDocumentationTargets(target!!, null).firstOrNull()
         }.finishOnUiThread(ModalityState.defaultModalityState()) { docTarget ->
+            pendingDoc = null
             if (docTarget == null || !hovered) return@finishOnUiThread
             val context = DataContext { key ->
                 when (key) {
                     CommonDataKeys.EDITOR.name -> editor
+                    CommonDataKeys.PROJECT.name -> project
+                    PlatformCoreDataKeys.CONTEXT_COMPONENT.name -> editor.contentComponent
                     DOCUMENTATION_TARGETS.name -> listOf(docTarget)
                     else -> null
                 }
@@ -185,17 +208,21 @@ private class SegmentPresentation(
                 .filter { it.name == "actionPerformed" }
                 .onEach { it.isAccessible = true }
 
-            val method = candidates
-                .firstOrNull { it.parameterTypes.firstOrNull() == DataContext::class.java }
-                ?: error(
-                    "No actionPerformed(DataContext, ...) overload found. " +
-                            "Available overloads:\n" + candidates.joinToString("\n") { m ->
-                        "  ${m.name}(${m.parameterTypes.joinToString { it.simpleName }})"
-                    }
-                )
+            val method = candidates.firstOrNull {
+                it.parameterTypes.firstOrNull() == DataContext::class.java
+            } ?: run {
+                val candidateString = candidates.joinToString("\n") { m ->
+                    "  ${m.name}(${m.parameterTypes.joinToString { it.simpleName }})"
+                }
+                error("No actionPerformed(DataContext, ...) overload found. Available overloads:\n$candidateString")
+            }
 
             val extraArgs = arrayOfNulls<Any?>(method.parameterCount - 1)
-            method.invoke(manager, context, *extraArgs)
+            try {
+                method.invoke(manager, context, *extraArgs)
+            } catch (e: java.lang.reflect.InvocationTargetException) {
+                throw e.cause ?: e
+            }
         }.submit(AppExecutorUtil.getAppExecutorService())
     }
 
