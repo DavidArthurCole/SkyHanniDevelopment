@@ -1,0 +1,26 @@
+<html>
+<body>
+Reports SkyHanni <code>object</code> declarations that contain event handlers or repo patterns but are missing
+the <code>@SkyHanniModule</code> annotation.
+<p>
+    Also flags <code>class</code> declarations annotated with <code>@SkyHanniModule</code>, since the annotation
+    can only be applied to <code>object</code> declarations.
+</p>
+<pre><code>
+// Missing annotation - will be flagged:
+object MyModule {
+    @HandleEvent
+    fun onTick(event: SkyHanniTickEvent) { }
+}
+
+// Correct:
+@SkyHanniModule
+object MyModule {
+    @HandleEvent
+    fun onTick(event: SkyHanniTickEvent) { }
+}
+</code></pre>
+<!-- tooltip end -->
+<p>Use the quick fix to automatically add the <code>@SkyHanniModule</code> annotation.</p>
+</body>
+</html>

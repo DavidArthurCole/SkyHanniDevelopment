@@ -1,0 +1,23 @@
+<html>
+<body>
+Reports <code>@HandleEvent</code> functions whose name does not match the <code>@PrimaryFunction</code> declared on the specified event class.
+<p>
+    When <code>@HandleEvent</code> specifies an explicit <code>eventType</code>, the handler
+    function name should match the event's <code>@PrimaryFunction</code> value for consistency
+    with the rest of the codebase.
+</p>
+<pre><code>
+// SlotClickEvent declares @PrimaryFunction("onSlotClick")
+
+// Mismatched name - will be flagged:
+@HandleEvent(eventType = SlotClickEvent::class)
+fun onWrongName() { }
+
+// Correct:
+@HandleEvent(eventType = SlotClickEvent::class)
+fun onSlotClick() { }
+</code></pre>
+<!-- tooltip end -->
+<p>Suppressable via <code>@Suppress("MismatchedPrimaryFunctionName")</code>.</p>
+</body>
+</html>

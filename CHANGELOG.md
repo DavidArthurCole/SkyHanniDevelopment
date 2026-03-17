@@ -1,6 +1,6 @@
 <!-- Keep a Changelog guide -> https://keepachangelog.com -->
 
-# SkyHanniIntelliJPlugin Changelog
+# SkyHanni Development Changelog
 
 ## [Unreleased]
 ### Added

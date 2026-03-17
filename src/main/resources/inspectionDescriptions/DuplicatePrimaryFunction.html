@@ -1,0 +1,19 @@
+<html>
+<body>
+Reports <code>SkyHanniEvent</code> subclasses whose <code>@PrimaryFunction</code> name is already declared on another event class.
+<p>
+    The name-to-event mapping is 1:1. Duplicate names cause ambiguity in handler dispatch
+    and must be resolved by renaming one of the conflicting <code>@PrimaryFunction</code> values.
+</p>
+<pre><code>
+// Duplicate name across two events - one will be flagged:
+@PrimaryFunction("onTick")
+class ServerTickEvent : SkyHanniEvent()
+
+@PrimaryFunction("onTick")
+class ClientTickEvent : SkyHanniEvent()
+</code></pre>
+<!-- tooltip end -->
+<p>Suppressable via <code>@Suppress("DuplicatePrimaryFunction")</code>.</p>
+</body>
+</html>

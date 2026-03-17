@@ -1,0 +1,2 @@
+// Caret is inside the path string in a migration call:
+event.move(127, "myFeature.myOption", "myFeature.myOption")

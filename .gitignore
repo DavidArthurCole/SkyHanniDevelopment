@@ -5,3 +5,9 @@
 .kotlin
 .qodana
 build
+
+# Local gradle props
+local.properties
+
+# Any error files
+*.hprof

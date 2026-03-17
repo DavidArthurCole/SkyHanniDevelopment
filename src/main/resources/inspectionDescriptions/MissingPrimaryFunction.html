@@ -1,0 +1,24 @@
+<html>
+<body>
+Reports concrete <code>SkyHanniEvent</code> subclasses that have no <code>@PrimaryFunction</code> annotation and are not abstract.
+<p>
+    Without <code>@PrimaryFunction</code>, handlers must supply an explicit
+    <code>eventType = SomeEvent::class</code> argument on <code>@HandleEvent</code>.
+    Annotating the event class enables conventionally-named, parameterless handler functions.
+</p>
+<pre><code>
+// Missing annotation - will be flagged:
+class SlotClickEvent : SkyHanniEvent()
+
+// Correct:
+@PrimaryFunction("onSlotClick")
+class SlotClickEvent : SkyHanniEvent()
+</code></pre>
+<!-- tooltip end -->
+<p>
+    A quick fix is offered when a candidate name can be derived from the class name and
+    is not already claimed by another event. Suppressable via
+    <code>@Suppress("MissingPrimaryFunction")</code>.
+</p>
+</body>
+</html>

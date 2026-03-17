@@ -1,0 +1,11 @@
+<html>
+<body>
+Generates an <code>event.move(...)</code> migration entry for a <code>@ConfigOption</code> property.
+<p>
+    Inserts the call into the containing class's <code>onConfigFix</code> handler, creating
+    the <code>@SkyHanniModule companion object</code> and handler function if they do not already
+    exist. <code>CONFIG_VERSION</code> is incremented automatically, unless a migration for
+    the current version already exists.
+</p>
+</body>
+</html>

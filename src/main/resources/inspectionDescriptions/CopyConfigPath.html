@@ -1,0 +1,15 @@
+<html>
+<body>
+Highlights properties annotated with <code>@ConfigOption</code> and offers a quick fix to copy their full config path to the clipboard.
+<p>
+    Resolves the dotted path (e.g. <code>inventory.items.slot</code>) by walking up the config class hierarchy,
+    stripping the <code>modules.editor.</code> prefix where applicable.
+</p>
+<pre><code>
+@ConfigOption(name = "My Option", desc = "")
+var myOption: Boolean = false
+</code></pre>
+<!-- tooltip end -->
+<p>Trigger the quick fix via Alt+Enter on the property name to copy the path.</p>
+</body>
+</html>

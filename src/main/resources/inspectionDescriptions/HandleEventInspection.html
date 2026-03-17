@@ -1,0 +1,22 @@
+<html>
+<body>
+Reports functions that handle SkyHanni events but are missing the <code>@HandleEvent</code> annotation, and flags
+functions annotated with <code>@HandleEvent</code> incorrectly.
+<p>
+    A function is considered an event handler if its single parameter extends <code>SkyHanniEvent</code>,
+    or if its name matches a <code>@PrimaryFunction</code> declaration on an event class.
+    The function must also be <code>public</code>.
+</p>
+<pre><code>
+// Missing annotation - will be flagged:
+fun onSomething(event: SkyHanniEvent) { }
+
+// Correct:
+@HandleEvent
+fun onSomething(event: SkyHanniEvent) { }
+</code></pre>
+<!-- tooltip end -->
+<p>Also reports <code>@HandleEvent</code> on non-public functions, and on functions that do not take a
+    <code>SkyHanniEvent</code> parameter and have no explicit <code>eventType</code> argument.</p>
+</body>
+</html>
