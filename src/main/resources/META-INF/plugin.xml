@@ -2,7 +2,7 @@
 <!--suppress PluginXmlI18n -->
 <idea-plugin>
     <id>skyhanni.plugin</id>
-    <name>SkyHanniIntelliJPlugin</name>
+    <name>SkyHanniDevelopment</name>
     <vendor>davidarthurcole</vendor>
 
     <depends>com.intellij.modules.platform</depends>

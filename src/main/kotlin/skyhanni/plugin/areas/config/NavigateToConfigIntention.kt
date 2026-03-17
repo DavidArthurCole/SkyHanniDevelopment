@@ -13,6 +13,7 @@ import com.intellij.psi.search.PsiShortNamesCache
 import org.jetbrains.kotlin.idea.codeinsight.api.classic.intentions.SelfTargetingOffsetIndependentIntention
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
+import java.util.function.Supplier
 
 /**
  * Activates on path string literals inside any `event.<fn>(...)` call where `<fn>` is one
@@ -27,7 +28,7 @@ import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 class NavigateToConfigIntention :
     SelfTargetingOffsetIndependentIntention<KtStringTemplateExpression>(
         KtStringTemplateExpression::class.java,
-        { "Go to config definition" }
+        Supplier { "Go to config definition" }
     ) {
 
     override fun generatePreview(project: Project, editor: Editor, file: PsiFile): IntentionPreviewInfo =

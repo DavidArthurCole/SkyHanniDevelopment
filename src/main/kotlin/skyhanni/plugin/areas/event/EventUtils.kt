@@ -14,13 +14,30 @@ import org.jetbrains.kotlin.psi.KtAnnotationEntry
 import org.jetbrains.kotlin.psi.KtClassLiteralExpression
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtNamedFunction
+import org.jetbrains.kotlin.psi.KtNullableType
 import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.kotlin.psi.KtParameter
+import org.jetbrains.kotlin.psi.KtTypeReference
+import org.jetbrains.kotlin.psi.KtUserType
 
 const val SKYHANNI_EVENT_FQN = "at.hannibal2.skyhanni.api.event.SkyHanniEvent"
 const val HANDLE_EVENT_ANNOTATION = "HandleEvent"
 const val HANDLE_EVENT_FQN = "at.hannibal2.skyhanni.api.event.HandleEvent"
 const val PRIMARY_FUNCTION_ANNOTATION = "PrimaryFunction"
+
+/**
+ * Returns the simple referenced class name from this type reference,
+ * stripping nullability and generic type arguments via PSI rather than text manipulation.
+ *
+ * e.g. `EntityNameTagRenderEvent<Player>` -> `"EntityNameTagRenderEvent"`
+ *      `SomeEvent?` -> `"SomeEvent"`
+ */
+private fun KtTypeReference.referencedTypeName(): String? {
+    val userType = (typeElement as? KtNullableType)?.innerType as? KtUserType
+        ?: typeElement as? KtUserType
+        ?: return null
+    return userType.referencedName
+}
 
 /**
  * Searches all non-abstract classes inheriting from SkyHanniEvent and builds a map of
@@ -77,8 +94,7 @@ fun resolveEventClass(function: KtNamedFunction, project: Project): PsiClass? {
         }
 
         if (function.valueParameters.size == 1) {
-            val typeRef = function.valueParameters.first().typeReference ?: return null
-            val rawType = typeRef.text.substringBefore('<').substringBefore('?').substringAfterLast('.')
+            val rawType = function.valueParameters.first().typeReference?.referencedTypeName() ?: return null
             return PsiShortNamesCache.getInstance(project).getClassesByName(rawType, scope)
                 .firstOrNull { InheritanceUtil.isInheritor(it, SKYHANNI_EVENT_FQN) }
         }

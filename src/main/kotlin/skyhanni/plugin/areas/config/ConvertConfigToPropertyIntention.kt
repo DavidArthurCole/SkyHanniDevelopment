@@ -7,11 +7,12 @@ import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.jetbrains.kotlin.psi.KtTypeReference
+import java.util.function.Supplier
 
 class ConvertConfigToPropertyIntention :
     SelfTargetingOffsetIndependentIntention<KtProperty>(
         KtProperty::class.java,
-        { "Convert @ConfigOption to Property<T>" }
+        Supplier { "Convert @ConfigOption to Property<T>" }
     ) {
 
     override fun isApplicableTo(element: KtProperty): Boolean {

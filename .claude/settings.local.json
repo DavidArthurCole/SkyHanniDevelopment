@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(cd \"C:/Users/david/IdeaProjects/SkyHanniIntelliJPlugin\" && ./gradlew test --info 2>&1 | tail -100)"
-    ]
-  }
-}

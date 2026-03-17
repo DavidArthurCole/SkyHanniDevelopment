@@ -13,6 +13,11 @@ plugins {
     alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
     alias(libs.plugins.detekt)
+
+    // Auto update lib versions
+    // Run with ./gradlew versionCatalogUpdate --no-configuration-cache
+    alias(libs.plugins.benManesVersions)
+    alias(libs.plugins.versionCatalogUpdate)
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -215,4 +220,8 @@ tasks.withType<DetektCreateBaselineTask>().configureEach {
     val isMainBaseline = (this.name == "detektBaselineMain")
     val outputFileName = if (isMainBaseline) "baseline-main" else "baseline"
     baseline.set(file(rootProject.layout.projectDirectory.file("detekt/$outputFileName.xml")))
+}
+
+versionCatalogUpdate {
+    sortByKey = false
 }

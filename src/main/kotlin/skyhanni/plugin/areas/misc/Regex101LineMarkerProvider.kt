@@ -52,9 +52,8 @@ class Regex101LineMarkerProvider : LineMarkerProvider {
         val call = nameExpr.parent as? KtCallExpression ?: return null
 
         val regexArgIndex = resolveRegexArgIndex(nameExpr, call) ?: return null
-
         val property = call.getParentOfType<KtProperty>(strict = true) ?: return null
-        val regexArg = call.valueArguments[regexArgIndex] ?: return null
+        val regexArg = call.valueArguments[regexArgIndex]
         val info = RegexInfo(regexArg, property.docComment)
 
         val regexText = info.getRegexText()?.replace("\"", "\\\"") ?: return null

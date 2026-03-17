@@ -1,6 +1,6 @@
-# SkyHanni IntelliJ Plugin
+# SkyHanni Development
 
-![Build](https://github.com/DavidArthurCole/SkyHanniIntelliJPlugin/workflows/Build/badge.svg)
+![Build](https://github.com/DavidArthurCole/SkyHanniDevelopment/workflows/Build/badge.svg)
 
 <!-- Plugin description -->
 An IntelliJ IDE plugin that provides development assistance for the [SkyHanni](https://github.com/hannibal002/SkyHanni) Minecraft Skyblock mod. It adds inspections, intentions, inlay hints, line markers, and code completion tailored to SkyHanni's event system and configuration framework.
@@ -64,11 +64,11 @@ The plugin resolves SkyHanni's `@ConfigOption` properties to their full dotted c
 
 Using the IDE built-in plugin system:
 
-<kbd>Settings</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "SkyHanniIntelliJPlugin"</kbd> > <kbd>Install</kbd>
+<kbd>Settings</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "SkyHanni Development"</kbd> > <kbd>Install</kbd>
 
 Manually:
 
-Download the [latest release](https://github.com/DavidArthurCole/SkyHanniIntelliJPlugin/releases/latest) and install it via
+Download the [latest release](https://github.com/DavidArthurCole/SkyHanniDevelopment/releases/latest) and install it via
 <kbd>Settings</kbd> > <kbd>Plugins</kbd> > <kbd>⚙</kbd> > <kbd>Install plugin from disk...</kbd>
 
 ---

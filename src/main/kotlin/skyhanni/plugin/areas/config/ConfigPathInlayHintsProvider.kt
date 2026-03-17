@@ -119,6 +119,8 @@ class ConfigPathInlayHintsProvider : InlayHintsProvider<NoSettings> {
             val gap = SegmentPresentation(" ", null, editor, HINT_COLOR)
             val fontMetrics = editor.component.getFontMetrics(editor.colorsScheme.getFont(EditorFontType.PLAIN))
             return factory.inset(
+                // seq() has no List overload
+                @Suppress("SpreadOperator")
                 factory.seq(gap, factory.roundWithBackground(factory.seq(*parts.toTypedArray()))),
                 top = -((editor.lineHeight - fontMetrics.height) / 2)
             )
@@ -160,7 +162,10 @@ private class SegmentPresentation(
         hovered = true
         fireContentChanged(Rectangle(width, height))
         editor.contentComponent.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-        docTimer = Timer(200) { showDocPopup() }.also { it.isRepeats = false; it.start() }
+        docTimer = Timer(200) { showDocPopup() }.also {
+            it.isRepeats = false
+            it.start()
+        }
     }
 
     override fun mouseExited() {
@@ -192,13 +197,14 @@ private class SegmentPresentation(
         val screenPoint = lastScreenPoint ?: return
         pendingDoc = ReadAction.nonBlocking<DocumentationRequest?> {
             if (!hovered) return@nonBlocking null
-            val docTarget = psiDocumentationTargets(target!!, null).firstOrNull() ?: return@nonBlocking null
+            val target = target ?: return@nonBlocking null
+            val docTarget = psiDocumentationTargets(target, null).firstOrNull() ?: return@nonBlocking null
 
             @Suppress("UNCHECKED_CAST")
             val pointer = docTarget::class.java.getMethod("createPointer").invoke(docTarget)
-                    as Pointer<out DocumentationTarget>
+                as Pointer<out DocumentationTarget>
             val presentation = docTarget::class.java.getMethod("computePresentation").invoke(docTarget)
-                    as TargetPresentation
+                as TargetPresentation
 
             DocumentationRequest(pointer, presentation)
         }.finishOnUiThread(ModalityState.defaultModalityState()) { request ->
@@ -213,12 +219,13 @@ private class SegmentPresentation(
             )
             try {
                 val inlineCtxClass = Class.forName("com.intellij.lang.documentation.ide.impl.InlinePopupContext")
-                val inlineCtx = inlineCtxClass.getDeclaredConstructors().first()
+                val inlineCtx = inlineCtxClass.declaredConstructors.first()
                     .also { it.isAccessible = true }
                     .newInstance(project, editor, popupPoint)
                 val showDocumentation = manager::class.java.declaredMethods
                     .first { it.name == "showDocumentation" && it.parameterTypes.firstOrNull() == List::class.java }
                     .also { it.isAccessible = true }
+                @Suppress("SpreadOperator")
                 showDocumentation.invoke(
                     manager,
                     listOf(request),

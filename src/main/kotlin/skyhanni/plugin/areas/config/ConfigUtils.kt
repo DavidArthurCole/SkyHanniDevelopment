@@ -3,6 +3,7 @@ package skyhanni.plugin.areas.config
 import com.intellij.openapi.project.Project
 import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiReference
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiShortNamesCache
 import com.intellij.psi.search.searches.ReferencesSearch
@@ -148,17 +149,24 @@ fun findContainingProperty(kClass: KtClassOrObject, project: Project): Containin
     val fqName = kClass.fqName?.asString() ?: return null
     val scope = GlobalSearchScope.projectScope(project)
 
-    fun searchRefs(target: PsiElement): ContainingPropertyResult? {
-        for (ref in ReferencesSearch.search(target, scope).findAll()) {
-            val prop = PsiTreeUtil.getParentOfType(ref.element, KtProperty::class.java) ?: continue
-            val parentClass = PsiTreeUtil.getParentOfType(prop, KtClassOrObject::class.java) ?: continue
-            if (parentClass.fqName?.asString()?.startsWith(BASE_CONFIG_PKG) != true) continue
-            if (parentClass.fqName?.asString() == fqName) continue
-            if (prop.parent !is KtClassBody) continue
-            return ContainingPropertyResult(prop.name ?: continue, parentClass, prop)
+    @Suppress("ReturnCount")
+    fun toContainingPropertyResult(ref: PsiReference): ContainingPropertyResult? {
+        val prop = PsiTreeUtil.getParentOfType(ref.element, KtProperty::class.java) ?: return null
+        val parentClass = PsiTreeUtil.getParentOfType(prop, KtClassOrObject::class.java) ?: return null
+        val fqString = parentClass.fqName?.asString() ?: return null
+        val propName = prop.name ?: return null
+
+        when {
+            !fqString.startsWith(BASE_CONFIG_PKG) -> return null
+            fqString == fqName -> return null
+            prop.parent !is KtClassBody -> return null
         }
-        return null
+
+        return ContainingPropertyResult(propName, parentClass, prop)
     }
+
+    fun searchRefs(target: PsiElement): ContainingPropertyResult? = ReferencesSearch.search(target, scope).findAll()
+        .firstNotNullOfOrNull { ref -> toContainingPropertyResult(ref) }
 
     return searchRefs(kClass)
         ?: JavaPsiFacade.getInstance(project).findClass(fqName, scope)?.let { searchRefs(it) }

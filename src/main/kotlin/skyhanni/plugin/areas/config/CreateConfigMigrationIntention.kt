@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.jetbrains.kotlin.psi.KtValueArgument
 import org.jetbrains.kotlin.psi.getOrCreateBody
+import java.util.function.Supplier
 
 private const val MIGRATOR_CLASS = "ConfigUpdaterMigrator"
 private const val MIGRATOR_VERSION_CONST = "CONFIG_VERSION"
@@ -40,7 +41,7 @@ private const val MIGRATOR_FQN_PREFIX = "at.hannibal2.skyhanni"
 class CreateConfigMigrationIntention :
     SelfTargetingOffsetIndependentIntention<KtProperty>(
         KtProperty::class.java,
-        { "Create config migration" }
+        Supplier { "Create config migration" }
     ) {
 
     override fun generatePreview(project: Project, editor: Editor, file: PsiFile): IntentionPreviewInfo =
