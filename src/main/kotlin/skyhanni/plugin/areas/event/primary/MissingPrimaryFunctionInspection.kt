@@ -63,10 +63,13 @@ class MissingPrimaryFunctionInspection : AbstractKotlinInspection() {
             val fix = if (candidate !in buildPrimaryNameMap(project).keys) AddPrimaryFunctionFix(candidate) else null
 
             holder.registerProblem(
-                klass.nameIdentifier ?: return,
-                "Event should either have a @PrimaryFunction, or be abstract",
-                ProblemHighlightType.WEAK_WARNING,
-                *listOfNotNull(fix).toTypedArray(),
+                holder.manager.createProblemDescriptor(
+                    klass.nameIdentifier ?: return,
+                    "Event should either have a @PrimaryFunction, or be abstract",
+                    fix,
+                    ProblemHighlightType.WEAK_WARNING,
+                    isOnTheFly,
+                )
             )
         }
     }

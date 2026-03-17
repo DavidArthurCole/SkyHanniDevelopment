@@ -1,19 +1,15 @@
 package skyhanni.plugin.areas.event.primary
 
 import com.intellij.codeInsight.intention.preview.IntentionPreviewInfo
-import com.intellij.codeInspection.ProblemHighlightType
-import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.search.PsiShortNamesCache
-import com.intellij.psi.util.InheritanceUtil
-import com.intellij.refactoring.rename.RenameProcessor
 import com.intellij.codeInspection.LocalQuickFix
 import com.intellij.codeInspection.ProblemDescriptor
+import com.intellij.codeInspection.ProblemHighlightType
+import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.project.Project
+import com.intellij.psi.PsiElementVisitor
+import com.intellij.refactoring.rename.RenameProcessor
 import org.jetbrains.kotlin.idea.codeinsight.api.classic.inspections.AbstractKotlinInspection
-import org.jetbrains.kotlin.psi.KtClassLiteralExpression
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtObjectDeclaration
@@ -21,7 +17,6 @@ import org.jetbrains.kotlin.psi.KtVisitorVoid
 import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
 import skyhanni.plugin.areas.event.HANDLE_EVENT_ANNOTATION
 import skyhanni.plugin.areas.event.PRIMARY_FUNCTION_ANNOTATION
-import skyhanni.plugin.areas.event.SKYHANNI_EVENT_FQN
 import skyhanni.plugin.areas.event.resolveEventClass
 
 
@@ -36,6 +31,7 @@ class MismatchedPrimaryFunctionInspection : AbstractKotlinInspection() {
         holder: ProblemsHolder,
         isOnTheFly: Boolean,
     ): PsiElementVisitor = object : KtVisitorVoid() {
+        @Suppress("ReturnCount")
         override fun visitNamedFunction(function: KtNamedFunction) {
             if (function.containingClassOrObject !is KtObjectDeclaration) return
             val functionName = function.name ?: return

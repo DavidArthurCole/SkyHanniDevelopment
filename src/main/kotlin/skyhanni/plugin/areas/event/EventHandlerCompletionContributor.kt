@@ -11,7 +11,6 @@ import com.intellij.codeInsight.lookup.LookupElement
 import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.editor.Document
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.util.PsiTreeUtil
@@ -102,8 +101,8 @@ private class StubInsertHandler(
             val newFile = PsiDocumentManager.getInstance(project).getPsiFile(document) as? KtFile
                 ?: return@runWriteCommandAction
             val factory = KtPsiFactory(project)
-            addImportIfMissing(newFile, factory, document, HANDLE_EVENT_FQN)
-            addImportIfMissing(newFile, factory, document, eventFqn)
+            addImportIfMissing(newFile, factory, HANDLE_EVENT_FQN)
+            addImportIfMissing(newFile, factory, eventFqn)
             PsiDocumentManager.getInstance(project).doPostponedOperationsAndUnblockDocument(document)
 
             // Place caret on the blank line inside the body
@@ -112,7 +111,7 @@ private class StubInsertHandler(
         }
     }
 
-    private fun addImportIfMissing(file: KtFile, factory: KtPsiFactory, document: Document, fqName: String) {
+    private fun addImportIfMissing(file: KtFile, factory: KtPsiFactory, fqName: String) {
         if (file.importDirectives.any { it.importedFqName?.asString() == fqName }) return
         val importDirective = factory.createFile("import $fqName\n").importDirectives.firstOrNull() ?: return
         (file.importList ?: file).add(importDirective)
