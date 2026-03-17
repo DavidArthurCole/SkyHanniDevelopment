@@ -1,52 +1,76 @@
-# SkyHanniIntelliJPlugin
+# SkyHanni Development
 
-![Build](https://github.com/DavidArthurCole/SkyHanniIntelliJPlugin/workflows/Build/badge.svg)
-[![Version](https://img.shields.io/jetbrains/plugin/v/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
-[![Downloads](https://img.shields.io/jetbrains/plugin/d/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
-
-## Template ToDo list
-- [x] Create a new [IntelliJ Platform Plugin Template][template] project.
-- [ ] Get familiar with the [template documentation][template].
-- [ ] Adjust the [pluginGroup](./gradle.properties) and [pluginName](./gradle.properties), as well as the [id](./src/main/resources/META-INF/plugin.xml) and [sources package](./src/main/kotlin).
-- [ ] Adjust the plugin description in `README` (see [Tips][docs:plugin-description])
-- [ ] Review the [Legal Agreements](https://plugins.jetbrains.com/docs/marketplace/legal-agreements.html?from=IJPluginTemplate).
-- [ ] [Publish a plugin manually](https://plugins.jetbrains.com/docs/intellij/publishing-plugin.html?from=IJPluginTemplate) for the first time.
-- [ ] Set the `MARKETPLACE_ID` in the above README badges. You can obtain it once the plugin is published to JetBrains Marketplace.
-- [ ] Set the [Plugin Signing](https://plugins.jetbrains.com/docs/intellij/plugin-signing.html?from=IJPluginTemplate) related [secrets](https://github.com/JetBrains/intellij-platform-plugin-template#environment-variables).
-- [ ] Set the [Deployment Token](https://plugins.jetbrains.com/docs/marketplace/plugin-upload.html?from=IJPluginTemplate).
-- [ ] Click the <kbd>Watch</kbd> button on the top of the [IntelliJ Platform Plugin Template][template] to be notified about releases containing new features and fixes.
-- [ ] Configure the [CODECOV_TOKEN](https://docs.codecov.com/docs/quick-start) secret for automated test coverage reports on PRs
+![Build](https://github.com/DavidArthurCole/SkyHanniDevelopment/workflows/Build/badge.svg)
 
 <!-- Plugin description -->
-This Fancy IntelliJ Platform Plugin is going to be your implementation of the brilliant ideas that you have.
-
-This specific section is a source for the [plugin.xml](/src/main/resources/META-INF/plugin.xml) file which will be extracted by the [Gradle](/build.gradle.kts) during the build process.
-
-To keep everything working, do not remove `<!-- ... -->` sections. 
+An IntelliJ IDE plugin that provides development assistance for the [SkyHanni](https://github.com/hannibal002/SkyHanni) Minecraft Skyblock mod. It adds inspections, intentions, inlay hints, line markers, and code completion tailored to SkyHanni's event system and configuration framework.
 <!-- Plugin description end -->
+
+## Features
+
+### Event Handling
+
+The plugin understands SkyHanni's event system and validates event handler declarations across the project.
+
+**Inspections**
+
+- **Missing `@HandleEvent`** — Flags public functions that accept a `SkyHanniEvent` parameter (or match a `@PrimaryFunction` name) without the `@HandleEvent` annotation. A quick fix adds it.
+- **Missing `@PrimaryFunction`** — Flags concrete `SkyHanniEvent` subclasses with no `@PrimaryFunction` annotation. Without it, handlers must use the verbose `eventType = ...` argument on every `@HandleEvent`. A quick fix suggests a derived name when one is available and not already taken.
+- **Duplicate `@PrimaryFunction` name** — Flags event classes that share a `@PrimaryFunction` name with another event. The name-to-event mapping is 1:1, so duplicates break handler dispatch.
+- **Mismatched `@PrimaryFunction` name** — Flags `@HandleEvent` functions with an explicit `eventType` whose function name does not match the `@PrimaryFunction` declared on that event class.
+
+**Navigation and hints**
+
+- **Line markers** — Gutter icons on `@HandleEvent` functions link to the corresponding event class declaration.
+- **Inlay hints** — For handlers that use the `@PrimaryFunction` convention, the resolved event type is shown inline beside the function name.
+- **Code completion** — Suggests valid handler function names based on `@PrimaryFunction` declarations found across the project.
+
+---
+
+### Configuration
+
+The plugin resolves SkyHanni's `@ConfigOption` properties to their full dotted config paths (e.g. `inventory.items.slot`) by walking the config class hierarchy.
+
+**Inspections**
+
+- **Copy config path** — Highlights every `@ConfigOption` property and offers a quick fix that copies its full config path to the clipboard.
+
+**Intentions**
+
+- **Convert to `Property<T>`** — Converts a `@ConfigOption var T` field to `val Property<T>`, wrapping the initializer in `Property.of(...)` and adding the required import.
+- **Create config migration** — Inserts an `event.move(...)` call into the class's `onConfigFix` handler. Creates the `@SkyHanniModule companion object` and handler function if they do not already exist, and increments `CONFIG_VERSION` automatically.
+- **Navigate to config property** — From a dotted path string inside `event.move("...")`, jumps directly to the property declaration in the config class hierarchy.
+
+**Inlay hints and navigation**
+
+- **Config path inlay hints** — Displays the resolved config path inline beside each `@ConfigOption` property.
+- **Config path references** — Dotted path strings in migration calls are treated as references, enabling Ctrl+Click navigation to the target property.
+
+---
+
+### Module Validation
+
+- **Missing `@SkyHanniModule`** — Flags `object` declarations that contain `@HandleEvent` functions or repo patterns without a `@SkyHanniModule` annotation. Also flags `class` declarations that incorrectly carry the annotation, which is only valid on `object`s. A quick fix adds or removes the annotation as appropriate.
+
+---
+
+### Miscellaneous
+
+- **Regex101 line markers** — Gutter icons on regex pattern declarations open the pattern directly in [regex101.com](https://regex101.com) for testing.
+
+---
 
 ## Installation
 
-- Using the IDE built-in plugin system:
+Using the IDE built-in plugin system:
 
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "SkyHanniIntelliJPlugin"</kbd> >
-  <kbd>Install</kbd>
+<kbd>Settings</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "SkyHanni Development"</kbd> > <kbd>Install</kbd>
 
-- Using JetBrains Marketplace:
+Manually:
 
-  Go to [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID) and install it by clicking the <kbd>Install to ...</kbd> button in case your IDE is running.
-
-  You can also download the [latest release](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID/versions) from JetBrains Marketplace and install it manually using
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
-
-- Manually:
-
-  Download the [latest release](https://github.com/DavidArthurCole/SkyHanniIntelliJPlugin/releases/latest) and install it manually using
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
-
+Download the [latest release](https://github.com/DavidArthurCole/SkyHanniDevelopment/releases/latest) and install it via
+<kbd>Settings</kbd> > <kbd>Plugins</kbd> > <kbd>⚙</kbd> > <kbd>Install plugin from disk...</kbd>
 
 ---
-Plugin based on the [IntelliJ Platform Plugin Template][template].
 
-[template]: https://github.com/JetBrains/intellij-platform-plugin-template
-[docs:plugin-description]: https://plugins.jetbrains.com/docs/intellij/plugin-user-experience.html#plugin-description-and-presentation
+Plugin based on the [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template).

@@ -14,12 +14,14 @@ import org.jetbrains.kotlin.idea.util.AnnotationModificationHelper
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.psi.KtNamedFunction
+import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.kotlin.psi.KtVisitorVoid
+import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
 import org.jetbrains.kotlin.psi.psiUtil.isPublic
 
 private const val EVENT_TYPE_PARAM = "eventType"
 private const val EVENT_TYPES_PARAM = "eventTypes"
-private const val HANDLE_EVENT_FQN = "at.hannibal2.skyhanni.api.event.HandleEvent"
+private val eventParams = setOf(EVENT_TYPE_PARAM, EVENT_TYPES_PARAM)
 
 class HandleEventInspection : AbstractKotlinInspection() {
 
@@ -30,9 +32,10 @@ class HandleEventInspection : AbstractKotlinInspection() {
 
     override fun buildVisitor(
         holder: ProblemsHolder,
-        isOnTheFly: Boolean
+        isOnTheFly: Boolean,
     ): PsiElementVisitor = object : KtVisitorVoid() {
         override fun visitNamedFunction(function: KtNamedFunction) {
+            if (function.containingClassOrObject !is KtObjectDeclaration) return
             val functionName = function.name ?: return
             val primaryNameMap = buildPrimaryNameMap(function.project)
 
@@ -41,7 +44,7 @@ class HandleEventInspection : AbstractKotlinInspection() {
 
             val isPrimaryFunctionName = primaryNameMap.containsKey(functionName)
 
-            // K2 compatibility guard — type resolution can throw in K2 mode
+            // K2 compatibility guard - type resolution can throw in K2 mode
             val isEventParam = run {
                 val typeRef = function.valueParameters.firstOrNull()?.typeReference ?: return@run false
                 val rawType = typeRef.text
@@ -57,14 +60,13 @@ class HandleEventInspection : AbstractKotlinInspection() {
             val annotationEntry = function.annotationEntries
                 .find { it.shortName?.asString() == HANDLE_EVENT_ANNOTATION }
 
-            val hasExplicitEventType = annotationEntry?.valueArguments?.any { arg ->
+            val valueArguments = annotationEntry?.valueArguments.orEmpty()
+            val hasExplicitEventType = valueArguments.any { arg ->
                 val argName = arg.getArgumentName()?.asName?.asString()
-                argName == EVENT_TYPE_PARAM ||
-                        argName == EVENT_TYPES_PARAM ||
-                        // Positional first argument counts too
-                        (annotationEntry.valueArguments.indexOf(arg) == 0 &&
-                                arg.getArgumentExpression()?.text != null)
-            } ?: false
+                val position = valueArguments.indexOf(arg)
+                val expressionText = arg.getArgumentExpression()?.text.orEmpty()
+                argName in eventParams || position == 0 && expressionText.isNotEmpty()
+            }
 
             val isPublic = function.isPublic || function.hasModifier(KtTokens.PUBLIC_KEYWORD)
 
@@ -105,9 +107,8 @@ private class AddHandleEventAnnotationFix : LocalQuickFix {
     override fun getFamilyName() = name
 
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-        val function = descriptor.psiElement as KtNamedFunction
         AnnotationModificationHelper.addAnnotation(
-            function,
+            descriptor.psiElement as KtNamedFunction,
             FqName(HANDLE_EVENT_FQN),
             null,
             null,

@@ -1,1 +1,5 @@
-// Navigates to the Config/Storage file where the property is defined.
+// Navigates the editor to the property declaration:
+class MyFeatureConfig {
+    @ConfigOption(name = "My Option", desc = "")
+    var myOption: Boolean = false  // <-- lands here
+}

@@ -2,7 +2,7 @@
 <!--suppress PluginXmlI18n -->
 <idea-plugin>
     <id>skyhanni.plugin</id>
-    <name>SkyHanniIntelliJPlugin</name>
+    <name>SkyHanniDevelopment</name>
     <vendor>davidarthurcole</vendor>
 
     <depends>com.intellij.modules.platform</depends>
@@ -20,33 +20,36 @@
         <postStartupActivity
                 implementation="skyhanni.plugin.startup.SkyHanniPluginActivity"/>
 
-        <codeInsight.declarativeInlayProvider language="kotlin"
-                                              implementationClass="skyhanni.plugin.areas.event.EventHandlerInlayHintsProvider"
-                                              isEnabledByDefault="true"
-                                              group="OTHER_GROUP"
-                                              providerId="skyhanni.event.primaryfunction.hint"
-                                              nameKey="inlay.hints.event.primaryfunction.name"
-                                              bundle="messages.SkyHanniBundle"/>
+        <!-- Must be declared so NotificationGroupManager can find it at runtime -->
+        <notificationGroup
+                id="SkyHanni Plugin"
+                displayType="BALLOON"
+                isLogByDefault="false"/>
 
-        <codeInsight.declarativeInlayProvider language="kotlin"
-                                              implementationClass="skyhanni.plugin.areas.config.ConfigPathInlayHintsProvider"
-                                              isEnabledByDefault="true"
-                                              group="OTHER_GROUP"
-                                              providerId="skyhanni.config.path.hint"
-                                              nameKey="inlay.hints.config.path.name"
-                                              bundle="messages.SkyHanniBundle"/>
+        <!-- Inlay hints -->
+        <codeInsight.declarativeInlayProvider
+                language="kotlin"
+                implementationClass="skyhanni.plugin.areas.event.EventHandlerInlayHintsProvider"
+                isEnabledByDefault="true"
+                group="OTHER_GROUP"
+                providerId="skyhanni.event.primaryfunction.hint"
+                nameKey="inlay.hints.event.primaryfunction.name"
+                bundle="messages.SkyHanniBundle"/>
 
+        <codeInsight.inlayProvider
+                language="kotlin"
+                implementationClass="skyhanni.plugin.areas.config.ConfigPathInlayHintsProvider"/>
+
+        <!-- Line markers -->
         <codeInsight.lineMarkerProvider
                 language="kotlin"
                 implementationClass="skyhanni.plugin.areas.misc.Regex101LineMarkerProvider"/>
 
-        <!-- Notification group used by config inspections/intentions for user feedback.
-             Must be declared here so NotificationGroupManager can find it at runtime. -->
-        <notificationGroup id="SkyHanni Plugin"
-                           displayType="BALLOON"
-                           isLogByDefault="false"/>
+        <codeInsight.lineMarkerProvider
+                language="kotlin"
+                implementationClass="skyhanni.plugin.areas.event.EventHandlerLineMarkerProvider"/>
 
-        <!-- Inspection: event handler functions should be annotated with @HandleEvent -->
+        <!-- Inspections -->
         <localInspection
                 language="kotlin"
                 groupName="SkyHanni"
@@ -56,9 +59,33 @@
                 level="WARNING"
                 implementationClass="skyhanni.plugin.areas.event.HandleEventInspection"/>
 
-        <!-- Warns when a SkyHanni object with event handlers or repo patterns
-             is missing the @SkyHanniModule annotation, and errors when a class
-             (not object) has the annotation applied. -->
+        <localInspection
+                language="kotlin"
+                groupName="SkyHanni"
+                displayName="Event should have @PrimaryFunction or be abstract"
+                shortName="MissingPrimaryFunction"
+                enabledByDefault="true"
+                level="WEAK WARNING"
+                implementationClass="skyhanni.plugin.areas.event.primary.MissingPrimaryFunctionInspection"/>
+
+        <localInspection
+                language="kotlin"
+                groupName="SkyHanni"
+                displayName="Handler function name does not match @PrimaryFunction for the event"
+                shortName="MismatchedPrimaryFunctionName"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="skyhanni.plugin.areas.event.primary.MismatchedPrimaryFunctionInspection"/>
+
+        <localInspection
+                language="kotlin"
+                groupName="SkyHanni"
+                displayName="Multiple events use the same @PrimaryFunction name"
+                shortName="DuplicatePrimaryFunction"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="skyhanni.plugin.areas.event.primary.DuplicatePrimaryFunctionInspection"/>
+
         <localInspection
                 language="kotlin"
                 groupName="SkyHanni"
@@ -68,7 +95,6 @@
                 level="WARNING"
                 implementationClass="skyhanni.plugin.areas.misc.SkyHanniModuleInspection"/>
 
-        <!-- Highlights @ConfigOption properties and offers "Copy config path" quick fix -->
         <localInspection
                 language="kotlin"
                 groupName="SkyHanni"
@@ -78,27 +104,38 @@
                 level="INFORMATION"
                 implementationClass="skyhanni.plugin.areas.config.CopyConfigPathInspection"/>
 
-        <!-- Line marker provider for functions annotated with @HandleEvent -->
-        <codeInsight.lineMarkerProvider
+        <!-- Reference contributors -->
+        <psi.referenceContributor
                 language="kotlin"
-                implementationClass="skyhanni.plugin.areas.event.EventHandlerLineMarkerProvider"/>
+                implementation="skyhanni.plugin.areas.config.ConfigPathReferenceContributor"/>
 
-        <!-- Reference contributor for string literals in event.move("dotted.path") to navigate to config properties -->
-        <psi.referenceContributor language="kotlin"
-                                  implementation="skyhanni.plugin.areas.config.ConfigPathReferenceContributor"/>
+        <psi.referenceContributor
+                language="kotlin"
+                implementation="skyhanni.plugin.areas.event.primary.PrimaryFunctionReferenceContributor"/>
 
-        <!-- Intention: convert @ConfigOption var T to val Property<T> -->
+        <!-- Completion -->
+        <completion.contributor
+                language="kotlin"
+                implementationClass="skyhanni.plugin.areas.event.EventHandlerCompletionContributor"/>
+
+        <!-- Intentions -->
         <intentionAction>
             <language>kotlin</language>
             <className>skyhanni.plugin.areas.config.ConvertConfigToPropertyIntention</className>
             <category>SkyHanni</category>
         </intentionAction>
 
-        <!-- Intention: navigate from event.move("dotted.path") string to config property -->
         <intentionAction>
             <language>kotlin</language>
             <className>skyhanni.plugin.areas.config.NavigateToConfigIntention</className>
             <category>SkyHanni</category>
         </intentionAction>
+
+        <intentionAction>
+            <language>kotlin</language>
+            <className>skyhanni.plugin.areas.config.CreateConfigMigrationIntention</className>
+            <category>SkyHanni</category>
+        </intentionAction>
+
     </extensions>
 </idea-plugin>

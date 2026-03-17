@@ -5,6 +5,5 @@ import com.intellij.openapi.startup.ProjectActivity
 
 class SkyHanniPluginActivity : ProjectActivity {
 
-    override suspend fun execute(project: Project) {
-    }
+    override suspend fun execute(project: Project) = Unit
 }

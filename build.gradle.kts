@@ -1,3 +1,5 @@
+import io.gitlab.arturbosch.detekt.Detekt
+import io.gitlab.arturbosch.detekt.DetektCreateBaselineTask
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
@@ -10,6 +12,12 @@ plugins {
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
+    alias(libs.plugins.detekt)
+
+    // Auto update lib versions
+    // Run with ./gradlew versionCatalogUpdate --no-configuration-cache
+    alias(libs.plugins.benManesVersions)
+    alias(libs.plugins.versionCatalogUpdate)
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -23,7 +31,7 @@ kotlin {
 // Configure project's dependencies
 repositories {
     mavenCentral()
-
+    maven("https://maven.notenoughupdates.org/releases") // NEU detekt rules
     // IntelliJ Platform Gradle Plugin Repositories Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-repositories-extension.html
     intellijPlatform {
         defaultRepositories()
@@ -54,6 +62,10 @@ dependencies {
         bundledPlugin("com.intellij.java")
         bundledPlugin("org.jetbrains.kotlin")
     }
+
+    detektPlugins("org.notenoughupdates:detektrules:1.0.0")
+    detektPlugins(project(":detekt"))
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
 }
 
 // Configure IntelliJ Platform Gradle Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
@@ -174,4 +186,42 @@ intellijPlatformTesting {
             }
         }
     }
+}
+
+detekt {
+    buildUponDefaultConfig = true // preconfigure defaults
+    config.setFrom(rootProject.layout.projectDirectory.file("detekt/detekt.yml")) // point to your custom config defining rules to run, overwriting default behavior
+    baseline = file(rootProject.layout.projectDirectory.file("detekt/baseline-main.xml")) // a way of suppressing issues before introducing detekt
+    source.setFrom(project.sourceSets.named("main").map { it.allSource })
+}
+
+tasks.withType<Detekt>().configureEach {
+    outputs.cacheIf { false } // Custom rules won't work if cached
+
+    val isDetektMain = (this.name == "detektMain")
+    val outputFileName = if (isDetektMain) "main" else "detekt"
+    val detektDir = rootProject.layout.buildDirectory.dir("reports/detekt").get().asFile.absolutePath
+    reports {
+        html.required.set(true) // observe findings in your browser with structure and code snippets
+        html.outputLocation.set(file("$detektDir/$outputFileName.html"))
+        xml.required.set(true) // checkstyle like format mainly for integrations like Jenkins
+        xml.outputLocation.set(file("$detektDir/$outputFileName.xml"))
+        sarif.required.set(true) // standardized SARIF format (https://sarifweb.azurewebsites.net/) to support integrations with GitHub Code Scanning
+        sarif.outputLocation.set(file("$detektDir/$outputFileName.sarif"))
+        md.required.set(true) // simple Markdown format
+        md.outputLocation.set(file("$detektDir/$outputFileName.md"))
+        txt.required.set(true)
+        txt.outputLocation.set(file("$detektDir/$outputFileName.txt"))
+    }
+}
+
+tasks.withType<DetektCreateBaselineTask>().configureEach {
+    outputs.cacheIf { false } // Custom rules won't work if cached
+    val isMainBaseline = (this.name == "detektBaselineMain")
+    val outputFileName = if (isMainBaseline) "baseline-main" else "baseline"
+    baseline.set(file(rootProject.layout.projectDirectory.file("detekt/$outputFileName.xml")))
+}
+
+versionCatalogUpdate {
+    sortByKey = false
 }

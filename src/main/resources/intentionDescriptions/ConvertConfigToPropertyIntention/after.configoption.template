@@ -1,2 +1,4 @@
-@ConfigOption(name = "My Option", desc = "")
-val myOption: Property<Boolean> = Property.of(false)
+class MyFeatureConfig {
+    @ConfigOption(name = "My Option", desc = "")
+    val myOption: Property<Boolean> = Property.of(false)
+}

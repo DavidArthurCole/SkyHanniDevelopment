@@ -2,5 +2,9 @@
 <body>
 Converts a <code>@ConfigOption var T</code> property to <code>val Property&lt;T&gt;</code>,
 wrapping the initializer in <code>Property.of(...)</code> and adding the required import.
+<p>
+    Use this when migrating a config field to the observable <code>Property</code> type,
+    which allows listeners to react to value changes at runtime without polling.
+</p>
 </body>
 </html>
