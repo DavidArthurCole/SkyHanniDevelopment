@@ -63,9 +63,9 @@ dependencies {
         bundledPlugin("org.jetbrains.kotlin")
     }
 
-    detektPlugins("org.notenoughupdates:detektrules:1.0.0")
+    detektPlugins(libs.detekt.neu)
     detektPlugins(project(":detekt"))
-    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.7")
+    detektPlugins(libs.detekt.formatting)
 }
 
 // Configure IntelliJ Platform Gradle Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html

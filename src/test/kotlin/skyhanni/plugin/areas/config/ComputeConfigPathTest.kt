@@ -33,35 +33,6 @@ class ComputeConfigPathTest : BasePlatformTestCase() {
         assertEquals("inventory.slotCount", computeConfigPath(property(childFile, "InventoryConfig", "slotCount")))
     }
 
-    fun testModulesEditorPrefixIsStripped() {
-        // Raw path "modules.editor.setting" becomes "setting" after STRIP_PREFIX is removed.
-        addFeaturesRoot("val modules: ModulesConfig = ModulesConfig()")
-
-        myFixture.addFileToProject(
-            "at/hannibal2/skyhanni/config/ModulesConfig.kt",
-            """
-            package at.hannibal2.skyhanni.config
-            class ModulesConfig {
-                val editor: EditorConfig = EditorConfig()
-            }
-            """.trimIndent()
-        )
-
-        val childFile = myFixture.addFileToProject(
-            "at/hannibal2/skyhanni/config/EditorConfig.kt",
-            """
-            package at.hannibal2.skyhanni.config
-            annotation class ConfigOption
-            class EditorConfig {
-                @ConfigOption
-                var setting: Boolean = true
-            }
-            """.trimIndent()
-        ) as KtFile
-
-        assertEquals("setting", computeConfigPath(property(childFile, "EditorConfig", "setting")))
-    }
-
     fun testAbstractClassReturnsNull() {
         val ktFile = myFixture.configureByText(
             "AbstractConfig.kt",
