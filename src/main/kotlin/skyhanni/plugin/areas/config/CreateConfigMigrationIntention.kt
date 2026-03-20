@@ -108,10 +108,10 @@ class CreateConfigMigrationIntention :
             .firstOrNull { it.name == MIGRATOR_VERSION_CONST } ?: return -1
         val currentVersion = versionProp.initializer?.text?.toIntOrNull() ?: return -1
 
-        if (migrationExistsForVersion(project, currentVersion)) return currentVersion
-
         val newVersion = currentVersion + 1
-        versionProp.initializer!!.replace(factory.createExpression(newVersion.toString()))
+        if (migrationExistsForVersion(project, newVersion)) return newVersion
+
+        versionProp.initializer?.replace(factory.createExpression(newVersion.toString())) ?: return currentVersion
         return newVersion
     }
 
