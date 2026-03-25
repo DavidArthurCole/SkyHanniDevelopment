@@ -1,24 +1,28 @@
 package skyhanni.plugin.areas.misc
 
+import com.intellij.codeInspection.InspectionSuppressor
+import com.intellij.codeInspection.SuppressQuickFix
+import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiComment
 import com.intellij.psi.PsiElement
+import com.intellij.spellchecker.inspections.PlainTextSplitter
 import com.intellij.spellchecker.tokenizer.SpellcheckingStrategy
+import com.intellij.spellchecker.tokenizer.TokenConsumer
 import com.intellij.spellchecker.tokenizer.Tokenizer
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
+import org.jetbrains.kotlin.psi.KtLambdaArgument
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 import org.jetbrains.kotlin.psi.KtValueArgument
 import org.jetbrains.kotlin.psi.KtValueArgumentList
-import com.intellij.codeInspection.InspectionSuppressor
-import com.intellij.codeInspection.SuppressQuickFix
-import com.intellij.psi.PsiComment
-import org.jetbrains.kotlin.psi.KtLambdaArgument
 
 /**
  * Suppresses Grazie spell check warnings in contexts where arbitrary or non-English strings are
  * intentional: RepoPattern keys, command names and aliases (inside registerBrigadier /
- * registerComplex lambdas), group/groupOrNull arguments, and lines containing REGEX-TEST:.
+ * registerComplex lambdas), group/groupOrNull arguments, strings containing Minecraft color codes,
+ * and lines containing REGEX-TEST:.
  */
 class SkyHanniSpellCheckSuppressor : InspectionSuppressor {
 
@@ -28,7 +32,7 @@ class SkyHanniSpellCheckSuppressor : InspectionSuppressor {
         var current: PsiElement? = element
         while (current != null) {
             if (current is KtStringTemplateExpression) {
-                return current.isIdentifierArg()
+                return current.isIdentifierArg() || current.containsMinecraftColorCode()
             }
             current = current.parent
         }
@@ -47,6 +51,7 @@ class SkyHanniSpellcheckingStrategy : SpellcheckingStrategy() {
         while (current != null) {
             if (current is KtStringTemplateExpression) {
                 if (current.isIdentifierArg()) return EMPTY_TOKENIZER
+                if (current.containsMinecraftColorCode()) return ColorCodeStrippingTokenizer
                 break
             }
             current = current.parent
@@ -108,6 +113,31 @@ internal fun KtStringTemplateExpression.isGroupNameArg(): Boolean {
     val (_, index, calleeName) = resolveCallArg() ?: return false
     if (index != 0) return false
     return calleeName == "group" || calleeName == "groupOrNull"
+}
+
+internal fun KtStringTemplateExpression.containsMinecraftColorCode(): Boolean = text.contains('§')
+
+private val colorCodeRegex = Regex("§.")
+
+private object ColorCodeStrippingTokenizer : Tokenizer<PsiElement>() {
+    override fun tokenize(element: PsiElement, consumer: TokenConsumer) {
+        val text = element.text
+        var lastEnd = 0
+
+        fun TextRange.consumeToken() {
+            consumer.consumeToken(element, text, false, 0, this, PlainTextSplitter.getInstance())
+        }
+
+        for (match in colorCodeRegex.findAll(text)) {
+            if (match.range.first > lastEnd) {
+                TextRange(lastEnd, match.range.first).consumeToken()
+            }
+            lastEnd = match.range.last + 1
+        }
+        if (lastEnd < text.length) {
+            TextRange(lastEnd, text.length).consumeToken()
+        }
+    }
 }
 
 internal fun PsiElement.isInsideRegexTestComment(): Boolean {

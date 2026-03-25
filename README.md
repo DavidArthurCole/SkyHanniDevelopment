@@ -77,6 +77,7 @@ config class hierarchy.
     - `RepoPattern` keys (first argument to `group`, `exclusiveGroup`, `list`, and `pattern`)
     - Command names and aliases inside `registerBrigadier`/`registerComplex`
     - `group`/`groupOrNull` name arguments
+    - Strings containing Minecraft color codes (`§`)
     - Regex test lines (lines marked with `REGEX-TEST:`)
 
 ---
