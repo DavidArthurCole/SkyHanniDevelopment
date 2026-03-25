@@ -129,6 +129,9 @@ class ConfigPathInlayHintsProvider : InlayHintsProvider<NoSettings> {
 }
 
 @Suppress("UnstableApiUsage")
+// V2 declarative API does not support per-segment colors or hover documentation popups.
+// V1 is intentionally used here; V2 is used in EventHandlerInlayHintsProvider where
+// those features are not needed.
 private class SegmentPresentation(
     private val label: String,
     private val target: NavigatablePsiElement?,

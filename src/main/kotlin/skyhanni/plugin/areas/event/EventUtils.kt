@@ -44,6 +44,7 @@ private fun KtTypeReference.referencedTypeName(): String? {
  * primary function name to fully-qualified event class name, sourced from
  * the @PrimaryFunction annotation on each event class.
  */
+// TODO Add unit tests
 fun buildPrimaryNameMap(project: Project): Map<String, String> {
     val facade = JavaPsiFacade.getInstance(project)
     val skyHanniEventClass = facade.findClass(SKYHANNI_EVENT_FQN, GlobalSearchScope.allScope(project))
@@ -74,6 +75,7 @@ fun buildPrimaryNameMap(project: Project): Map<String, String> {
  * 2. Single SkyHanniEvent-typed parameter
  * 3. Function name matching a @PrimaryFunction-annotated event class
  */
+// TODO Add unit tests
 fun resolveEventClass(function: KtNamedFunction, project: Project): PsiClass? {
     val scope = GlobalSearchScope.allScope(project)
     val hasHandleEvent = function.annotationEntries.any { it.shortName?.asString() == HANDLE_EVENT_ANNOTATION }
@@ -112,6 +114,7 @@ fun resolveEventClass(function: KtNamedFunction, project: Project): PsiClass? {
  * - Annotation argument: @HandleEvent(eventType = SomeEvent::class)
  * - Primary function name match (parameterless handlers)
  */
+// TODO Add unit tests
 fun findHandlersForEvent(psiClass: PsiClass, project: Project): List<KtNamedFunction> {
     val result = mutableListOf<KtNamedFunction>()
     val scope = GlobalSearchScope.projectScope(project)

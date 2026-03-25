@@ -15,6 +15,7 @@ import com.intellij.util.ProcessingContext
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 
+// TODO Add unit tests
 class ConfigPathReferenceContributor : PsiReferenceContributor() {
 
     override fun registerReferenceProviders(registrar: PsiReferenceRegistrar) {

@@ -27,6 +27,7 @@ import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
  * when typing a function name inside a KtObjectDeclaration. Selecting a suggestion inserts
  * a complete @HandleEvent handler stub and adds the necessary imports.
  */
+// TODO Add unit tests
 class EventHandlerCompletionContributor : CompletionContributor() {
     init {
         extend(

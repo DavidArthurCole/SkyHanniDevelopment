@@ -25,6 +25,7 @@ import skyhanni.plugin.areas.event.PRIMARY_FUNCTION_ANNOTATION
  * Makes the string literal inside @PrimaryFunction("onTick") a multi-target reference.
  * Ctrl+clicking it opens a popup listing all handler functions with that name in objects.
  */
+// TODO Add unit tests
 class PrimaryFunctionReferenceContributor : PsiReferenceContributor() {
     override fun registerReferenceProviders(registrar: PsiReferenceRegistrar) {
         registrar.registerReferenceProvider(

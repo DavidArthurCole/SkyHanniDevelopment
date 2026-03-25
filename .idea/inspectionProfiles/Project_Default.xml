@@ -1,0 +1,15 @@
+<component name="InspectionProjectProfileManager">
+    <profile version="1.0">
+        <option name="myName" value="Project Default"/>
+        <inspection_tool class="EditorConfigKeyCorrectness" enabled="false" level="WARNING" enabled_by_default="false"/>
+        <inspection_tool class="unused" enabled="true" level="WARNING" enabled_by_default="true">
+            <option name="ADDITIONAL_ANNOTATIONS">
+                <value>
+                    <list>
+                        <item index="0" class="java.lang.String" itemvalue="com.intellij.openapi.components.Service"/>
+                    </list>
+                </value>
+            </option>
+        </inspection_tool>
+    </profile>
+</component>

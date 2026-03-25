@@ -7,7 +7,7 @@ import org.junit.Test
 class ConfigUtilsPureTest {
 
     @Test
-    fun regularPathReturnBaseConfigClassUnchanged() {
+    fun regularPathReturnsBaseConfigClassUnchanged() {
         val list = mutableListOf("inventory", "items")
         assertEquals(BASE_CONFIG_CLASS, list.getRootClassName())
         assertEquals(listOf("inventory", "items"), list)

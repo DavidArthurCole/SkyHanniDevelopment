@@ -6,6 +6,7 @@ root = true
 # Unix-style newlines with a newline ending every file
 end_of_line = lf
 insert_final_newline = true
+trim_trailing_whitespace = true
 
 # Indent styling
 indent_size = 4
@@ -17,13 +18,6 @@ ij_any_line_comment_add_space = true
 
 # Max line length
 max_line_length = 140
-
-# Java Files
-[*.java]
-# Java files should not use wildcard imports
-ij_java_names_count_to_use_import_on_demand = 2147483647
-ij_java_class_count_to_use_import_on_demand = 2147483647
-ij_java_packages_to_use_import_on_demand = 2147483647
 
 # Kotlin Files
 [*.kt]
