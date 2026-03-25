@@ -2,6 +2,7 @@
 .gradle
 .idea/**/*.*
 !.idea/dictionaries/project.xml
+!.idea/inspectionProfiles/Project_Default.xml
 .intellijPlatform
 .kotlin
 .qodana

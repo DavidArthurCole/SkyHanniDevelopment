@@ -19,13 +19,6 @@ ij_any_line_comment_add_space = true
 # Max line length
 max_line_length = 140
 
-# Java Files
-[*.java]
-# Java files should not use wildcard imports
-ij_java_names_count_to_use_import_on_demand = 2147483647
-ij_java_class_count_to_use_import_on_demand = 2147483647
-ij_java_packages_to_use_import_on_demand = 2147483647
-
 # Kotlin Files
 [*.kt]
 ktlint_code_style = intellij_idea
