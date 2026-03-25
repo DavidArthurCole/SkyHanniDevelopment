@@ -1,6 +1,7 @@
 .DS_Store
 .gradle
-.idea
+.idea/**/*.*
+!.idea/dictionaries/project.xml
 .intellijPlatform
 .kotlin
 .qodana
