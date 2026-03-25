@@ -20,6 +20,10 @@ plugins {
     alias(libs.plugins.versionCatalogUpdate)
 }
 
+base {
+    archivesName = providers.gradleProperty("pluginName").get().replace(" ", "")
+}
+
 group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 

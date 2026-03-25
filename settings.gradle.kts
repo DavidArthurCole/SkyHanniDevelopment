@@ -11,7 +11,7 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-rootProject.name = "SkyHanniDevelopment"
+rootProject.name = "SkyHanni IntelliJ Plugin"
 
 include(":detekt")
 project(":detekt").name = "detekt"
