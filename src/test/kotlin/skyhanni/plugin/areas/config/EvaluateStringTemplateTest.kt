@@ -28,20 +28,20 @@ class EvaluateStringTemplateTest : BasePlatformTestCase() {
         assertEquals("foo.bar.baz", evaluateStringTemplate(expr))
     }
 
-    /** A block entry like [KtBlockStringTemplateEntry] (`${'$'}{expr()}`) cannot be statically resolved. */
+    /** A block entry like [org.jetbrains.kotlin.psi.KtBlockStringTemplateEntry] (`${'$'}{expr()}`) cannot be statically resolved. */
     fun testBlockEntryReturnsNull() {
         val factory = KtPsiFactory(project)
-        val expr = factory.createExpression("\"\${someExpr()}\"") as KtStringTemplateExpression
+        val expr = factory.createExpression($$"\"${someExpr()}\"") as KtStringTemplateExpression
         assertNull(evaluateStringTemplate(expr))
     }
 
     fun testSimpleNameEntryResolvedFromLocalVal() {
         val ktFile = myFixture.configureByText(
             "Test.kt",
-            """
+            $$"""
             fun foo() {
                 val greeting = "hello"
-                val composed = "${'$'}greeting world"
+                val composed = "$greeting world"
             }
             """.trimIndent()
         ) as KtFile
@@ -56,9 +56,9 @@ class EvaluateStringTemplateTest : BasePlatformTestCase() {
     fun testSimpleNameEntryWithNoMatchingValReturnsNull() {
         val ktFile = myFixture.configureByText(
             "Test.kt",
-            """
+            $$"""
             fun foo() {
-                val result = "${'$'}unknown"
+                val result = "$unknown"
             }
             """.trimIndent()
         ) as KtFile
@@ -74,10 +74,10 @@ class EvaluateStringTemplateTest : BasePlatformTestCase() {
     fun testVarDeclarationIsNotResolved() {
         val ktFile = myFixture.configureByText(
             "Test.kt",
-            """
+            $$"""
             fun foo() {
                 var mutable = "should not resolve"
-                val result = "${'$'}mutable"
+                val result = "$mutable"
             }
             """.trimIndent()
         ) as KtFile
@@ -92,10 +92,10 @@ class EvaluateStringTemplateTest : BasePlatformTestCase() {
     fun testOneHopLocalValResolution() {
         val ktFile = myFixture.configureByText(
             "Test.kt",
-            """
+            $$"""
             fun foo() {
                 val a = "x"
-                val b = "${'$'}a.y"
+                val b = "$a.y"
             }
             """.trimIndent()
         ) as KtFile
@@ -112,11 +112,11 @@ class EvaluateStringTemplateTest : BasePlatformTestCase() {
     fun testTwoHopLocalValResolution() {
         val ktFile = myFixture.configureByText(
             "Test.kt",
-            """
+            $$"""
             fun foo() {
                 val a = "x"
-                val b = "${'$'}a.y"
-                val c = "${'$'}b.z"
+                val b = "$a.y"
+                val c = "$b.z"
             }
             """.trimIndent()
         ) as KtFile

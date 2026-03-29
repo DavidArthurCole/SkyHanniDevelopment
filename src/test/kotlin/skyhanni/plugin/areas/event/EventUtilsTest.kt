@@ -11,11 +11,12 @@ import org.jetbrains.kotlin.psi.KtObjectDeclaration
  * Each test builds a minimal SkyHanniEvent hierarchy in the PSI fixture so that the
  * index-backed searches used by these functions can find and walk the class graph.
  */
+@Suppress("SameParameterValue")
 class EventUtilsTest : BasePlatformTestCase() {
 
-    // -------------------------------------------------------------------------
-    // Shared PSI scaffolding
-    // -------------------------------------------------------------------------
+    // Here for type resolution of KDocs
+    @Suppress("UNUSED")
+    private typealias SkyHanniEvent = Unit
 
     /** Adds the SkyHanniEvent base class and its companion annotations to the fixture. */
     private fun addEventBase() {
@@ -88,10 +89,6 @@ class EventUtilsTest : BasePlatformTestCase() {
         return obj.declarations.filterIsInstance<KtNamedFunction>().first { it.name == functionName }
     }
 
-    // -------------------------------------------------------------------------
-    // buildPrimaryNameMap
-    // -------------------------------------------------------------------------
-
     fun testBuildPrimaryNameMapIncludesConcreteAnnotatedEvent() {
         addEventBase()
         addConcreteEvent("FooEvent", "onFoo")
@@ -138,10 +135,6 @@ class EventUtilsTest : BasePlatformTestCase() {
         assertEquals("com.example.FooEvent", map["onFoo"])
         assertEquals("com.example.BarEvent", map["onBar"])
     }
-
-    // -------------------------------------------------------------------------
-    // resolveEventClass
-    // -------------------------------------------------------------------------
 
     fun testResolveEventClassViaParameterType() {
         addEventBase()
@@ -249,10 +242,6 @@ class EventUtilsTest : BasePlatformTestCase() {
 
         assertNull(resolved)
     }
-
-    // -------------------------------------------------------------------------
-    // findHandlersForEvent
-    // -------------------------------------------------------------------------
 
     private fun psiClassForEvent(eventSimpleName: String) =
         com.intellij.psi.JavaPsiFacade.getInstance(project)
