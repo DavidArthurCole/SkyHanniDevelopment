@@ -80,7 +80,14 @@ class HandleEventInspection : AbstractKotlinInspection() {
                 argName in eventParams || position == 0 && expressionText.isNotEmpty()
             }
 
-            val isPublic = function.isPublic || function.hasModifier(KtTokens.PUBLIC_KEYWORD)
+            // For override functions, visibility is inherited - PSI's isPublic returns true when there's no
+            // explicit modifier, but the actual visibility may be internal or less. Require an explicit
+            // public keyword for overrides to avoid false positives on internal abstract overrides.
+            val isPublic = if (function.hasModifier(KtTokens.OVERRIDE_KEYWORD)) {
+                function.hasModifier(KtTokens.PUBLIC_KEYWORD)
+            } else {
+                function.isPublic || function.hasModifier(KtTokens.PUBLIC_KEYWORD)
+            }
 
             // @HandleEvent on non-public function
             val needsPublic = hasHandleEventAnnotation && (hasExplicitEventType || isPrimaryFunctionName)
@@ -93,7 +100,7 @@ class HandleEventInspection : AbstractKotlinInspection() {
             // Missing @HandleEvent on a clear event handler
             if ((isEventParam && function.valueParameters.size == 1 || isEventReceiver && function.valueParameters.isEmpty()) &&
                 !hasHandleEventAnnotation &&
-                function.isPublic &&
+                isPublic &&
                 !function.hasModifier(KtTokens.OPEN_KEYWORD)
             ) return holder.registerProblem(
                 function,
