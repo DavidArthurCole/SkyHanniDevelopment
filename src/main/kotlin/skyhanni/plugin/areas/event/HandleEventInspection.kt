@@ -106,6 +106,7 @@ class HandleEventInspection : AbstractKotlinInspection() {
             )
 
             // Missing @HandleEvent on a clear event handler
+            @Suppress("ComplexCondition")
             if ((isEventParam && function.valueParameters.size == 1 || isEventReceiver && function.valueParameters.isEmpty()) &&
                 !hasHandleEventAnnotation &&
                 isPublic &&
