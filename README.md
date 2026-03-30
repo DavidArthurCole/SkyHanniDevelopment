@@ -78,6 +78,8 @@ config class hierarchy.
     - *Spell check:* Command names and aliases inside `registerBrigadier`/`registerComplex`
     - *Spell check:* `group`/`groupOrNull` name arguments
     - *Spell check:* Strings starting with `/` (slash-command names)
+    - *Spell check:* Brigadier `literal`/`literalCallback` sub-command name arguments
+    - *Spell check:* Strings containing SkyHanni command references (`/sh`)
     - *Spell check:* `@SearchTag` annotation arguments
     - *Spell check:* Config path strings in `ConfigFixEvent` calls (`move`, `transform`, `add`, `remove`)
     - *Spell check:* Constant name strings in `event.getConstant(...)` calls

@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package skyhanni.plugin.areas.misc
 
 import com.intellij.codeInspection.InspectionSuppressor
@@ -23,8 +25,9 @@ import org.jetbrains.kotlin.psi.KtValueArgumentList
 /**
  * Suppresses IntelliJ inspection warnings in SkyHanni-specific contexts:
  * - Spell check (Grazie): RepoPattern keys, command names and aliases (inside registerBrigadier /
- *   registerComplex lambdas), group/groupOrNull arguments, strings starting with "/", SearchTag
- *   annotation arguments, ConfigFixEvent path arguments (move/transform/add/remove),
+ *   registerComplex lambdas), group/groupOrNull arguments, strings starting with "/" or containing
+ *   SkyHanni command references ("/sh"), Brigadier literal/literalCallback sub-command names,
+ *   SearchTag annotation arguments, ConfigFixEvent path arguments (move/transform/add/remove),
  *   getConstant arguments, strings containing Minecraft color codes, and REGEX-TEST: lines.
  * - RegExpRedundantEscape: regex strings passed to RepoPattern.pattern().
  */
@@ -72,7 +75,9 @@ internal fun KtStringTemplateExpression.isIdentifierArg(): Boolean = isRepoPatte
     isCommandString() ||
     isSearchTagArg() ||
     isConfigFixArg() ||
-    isGetConstantArg()
+    isGetConstantArg() ||
+    isBrigadierLiteralArg() ||
+    containsSlashCommandRef()
 
 internal fun KtStringTemplateExpression.resolveCallArg(): Triple<KtCallExpression, Int, String>? {
     val valueArg = parent as? KtValueArgument ?: return null
@@ -126,6 +131,13 @@ internal fun KtStringTemplateExpression.isGroupNameArg(): Boolean {
 
 internal fun KtStringTemplateExpression.isCommandString(): Boolean = entries.firstOrNull()?.text?.startsWith("/") == true
 
+internal fun KtStringTemplateExpression.isBrigadierLiteralArg(): Boolean {
+    val (call, index, calleeName) = resolveCallArg() ?: return false
+    if (index != 0) return false
+    if (calleeName != "literal" && calleeName != "literalCallback") return false
+    return call.parent !is KtDotQualifiedExpression
+}
+
 internal fun KtStringTemplateExpression.isSearchTagArg(): Boolean {
     val valueArg = parent as? KtValueArgument ?: return false
     val argList = valueArg.parent as? KtValueArgumentList ?: return false
@@ -163,6 +175,9 @@ internal fun PsiElement.isInsideRepoPatternRegex(): Boolean {
 }
 
 internal fun KtStringTemplateExpression.containsMinecraftColorCode(): Boolean = text.contains('§')
+
+internal fun KtStringTemplateExpression.containsSlashCommandRef(): Boolean =
+    entries.any { it.text.contains("/sh") }
 
 private val colorCodeRegex = Regex("§.")
 
