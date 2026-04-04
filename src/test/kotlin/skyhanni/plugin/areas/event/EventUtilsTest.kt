@@ -211,6 +211,7 @@ class EventUtilsTest : BasePlatformTestCase() {
             """
             package com.example
             object MyModule {
+                @HandleEvent
                 fun onFoo() {}
             }
             """.trimIndent()
