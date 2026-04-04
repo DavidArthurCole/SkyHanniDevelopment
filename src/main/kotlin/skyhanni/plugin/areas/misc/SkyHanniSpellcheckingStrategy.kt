@@ -1,3 +1,5 @@
+@file:Suppress("TooManyFunctions")
+
 package skyhanni.plugin.areas.misc
 
 import com.intellij.codeInspection.InspectionSuppressor
@@ -9,7 +11,9 @@ import com.intellij.spellchecker.inspections.PlainTextSplitter
 import com.intellij.spellchecker.tokenizer.SpellcheckingStrategy
 import com.intellij.spellchecker.tokenizer.TokenConsumer
 import com.intellij.spellchecker.tokenizer.Tokenizer
+import org.jetbrains.kotlin.kdoc.psi.api.KDoc
 import org.jetbrains.kotlin.lexer.KtTokens
+import org.jetbrains.kotlin.psi.KtAnnotationEntry
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
@@ -21,16 +25,18 @@ import org.jetbrains.kotlin.psi.KtValueArgumentList
 /**
  * Suppresses IntelliJ inspection warnings in SkyHanni-specific contexts:
  * - Spell check (Grazie): RepoPattern keys, command names and aliases (inside registerBrigadier /
- *   registerComplex lambdas), group/groupOrNull arguments, strings containing Minecraft color codes,
- *   and lines containing REGEX-TEST:.
+ *   registerComplex lambdas), group/groupOrNull arguments, strings starting with "/" or containing
+ *   SkyHanni command references ("/sh"), Brigadier literal/literalCallback sub-command names,
+ *   SearchTag annotation arguments, ConfigFixEvent path arguments (move/transform/add/remove),
+ *   getConstant arguments, strings containing Minecraft color codes, and REGEX-TEST: lines.
  * - RegExpRedundantEscape: regex strings passed to RepoPattern.pattern().
  */
 class SkyHanniInspectionSuppressor : InspectionSuppressor {
 
     override fun isSuppressedFor(element: PsiElement, toolId: String): Boolean {
+        if (element.isInsideRegexTestComment()) return true
         if (toolId == "RegExpRedundantEscape") return element.isInsideRepoPatternRegex()
         if (!toolId.contains("Spell", ignoreCase = true) && !toolId.contains("Grazie", ignoreCase = true)) return false
-        if (element.isInsideRegexTestComment()) return true
         var current: PsiElement? = element
         while (current != null) {
             if (current is KtStringTemplateExpression) {
@@ -65,7 +71,13 @@ class SkyHanniSpellcheckingStrategy : SpellcheckingStrategy() {
 internal fun KtStringTemplateExpression.isIdentifierArg(): Boolean = isRepoPatternKeyArg() ||
     isCommandNameArg() ||
     isCommandAliasArg() ||
-    isGroupNameArg()
+    isGroupNameArg() ||
+    isCommandString() ||
+    isSearchTagArg() ||
+    isConfigFixArg() ||
+    isGetConstantArg() ||
+    isBrigadierLiteralArg() ||
+    containsSlashCommandRef()
 
 internal fun KtStringTemplateExpression.resolveCallArg(): Triple<KtCallExpression, Int, String>? {
     val valueArg = parent as? KtValueArgument ?: return null
@@ -117,6 +129,36 @@ internal fun KtStringTemplateExpression.isGroupNameArg(): Boolean {
     return calleeName == "group" || calleeName == "groupOrNull"
 }
 
+internal fun KtStringTemplateExpression.isCommandString(): Boolean = entries.firstOrNull()?.text?.startsWith("/") == true
+
+internal fun KtStringTemplateExpression.isBrigadierLiteralArg(): Boolean {
+    val (call, index, calleeName) = resolveCallArg() ?: return false
+    if (index != 0) return false
+    if (calleeName != "literal" && calleeName != "literalCallback") return false
+    return call.parent !is KtDotQualifiedExpression
+}
+
+internal fun KtStringTemplateExpression.isSearchTagArg(): Boolean {
+    val valueArg = parent as? KtValueArgument ?: return false
+    val argList = valueArg.parent as? KtValueArgumentList ?: return false
+    val annotation = argList.parent as? KtAnnotationEntry ?: return false
+    return annotation.typeReference?.text == "SearchTag"
+}
+
+internal fun KtStringTemplateExpression.isConfigFixArg(): Boolean {
+    val (call, _, calleeName) = resolveCallArg() ?: return false
+    if (calleeName !in setOf("move", "transform", "add", "remove")) return false
+    val dotExpr = call.parent as? KtDotQualifiedExpression ?: return false
+    return dotExpr.receiverExpression.text == "event"
+}
+
+internal fun KtStringTemplateExpression.isGetConstantArg(): Boolean {
+    val (call, _, calleeName) = resolveCallArg() ?: return false
+    if (calleeName != "getConstant") return false
+    val dotExpr = call.parent as? KtDotQualifiedExpression ?: return false
+    return dotExpr.receiverExpression.text == "event"
+}
+
 internal fun KtStringTemplateExpression.isRepoPatternRegexArg(): Boolean {
     val (_, index, calleeName) = resolveCallArg() ?: return false
     if (calleeName != "pattern") return false
@@ -133,6 +175,9 @@ internal fun PsiElement.isInsideRepoPatternRegex(): Boolean {
 }
 
 internal fun KtStringTemplateExpression.containsMinecraftColorCode(): Boolean = text.contains('§')
+
+internal fun KtStringTemplateExpression.containsSlashCommandRef(): Boolean =
+    entries.any { it.text.contains("/sh") }
 
 private val colorCodeRegex = Regex("§.")
 
@@ -160,9 +205,7 @@ private object ColorCodeStrippingTokenizer : Tokenizer<PsiElement>() {
 internal fun PsiElement.isInsideRegexTestComment(): Boolean {
     var current: PsiElement? = this
     while (current != null) {
-        if (current is PsiComment) {
-            return current.text.contains("REGEX-TEST:")
-        }
+        if (current is KDoc || current is PsiComment) return current.text.contains("REGEX-TEST:")
         current = current.parent
     }
     return false

@@ -71,15 +71,22 @@ config class hierarchy.
 
 ### Miscellaneous
 
-- **Regex101 line markers** - Gutter icons on regex pattern declarations open the pattern directly in [regex101.com](https://regex101.com)
+- **Regex101 line markers** — Gutter icons on regex pattern declarations open the pattern directly in [regex101.com](https://regex101.com)
   for testing.
-- **Inspection suppression** - Suppresses false-positive IntelliJ warnings in SkyHanni-specific contexts:
+- **Inspection suppression** — Suppresses false-positive IntelliJ warnings in SkyHanni-specific contexts:
     - *Spell check:* `RepoPattern` keys (first argument to `group`, `exclusiveGroup`, `list`, and `pattern`)
     - *Spell check:* Command names and aliases inside `registerBrigadier`/`registerComplex`
     - *Spell check:* `group`/`groupOrNull` name arguments
+    - *Spell check:* Strings starting with `/` (slash-command names)
+    - *Spell check:* Brigadier `literal`/`literalCallback` sub-command name arguments
+    - *Spell check:* Strings containing SkyHanni command references (`/sh`)
+    - *Spell check:* `@SearchTag` annotation arguments
+    - *Spell check:* Config path strings in `ConfigFixEvent` calls (`move`, `transform`, `add`, `remove`)
+    - *Spell check:* Constant name strings in `event.getConstant(...)` calls
     - *Spell check:* Strings containing Minecraft color codes (`§`)
     - *Spell check:* Regex test lines (lines marked with `REGEX-TEST:`)
-    - *Redundant escape:* Regex strings in `RepoPattern.pattern()` calls (the `\/` escape is sometimes necessary by the regex test logic)
+    - *Redundant escape:* Regex strings in `RepoPattern.pattern()` calls (the `\/` escape is sometimes necessary by the regex test
+      logic)
 
 ---
 
