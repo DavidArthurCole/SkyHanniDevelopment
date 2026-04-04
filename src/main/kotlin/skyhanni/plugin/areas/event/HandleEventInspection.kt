@@ -106,16 +106,16 @@ class HandleEventInspection : AbstractKotlinInspection() {
             )
 
             // Missing @HandleEvent on a clear event handler
-            @Suppress("ComplexCondition")
-            if ((isEventParam && function.valueParameters.size == 1 || isEventReceiver && function.valueParameters.isEmpty()) &&
-                !hasHandleEventAnnotation &&
-                isPublic &&
-                !function.hasModifier(KtTokens.OPEN_KEYWORD)
-            ) return holder.registerProblem(
-                function,
-                "Event handler function should be annotated with @HandleEvent",
-                AddHandleEventAnnotationFix()
-            )
+            val isEventParamHandler = isEventParam && function.valueParameters.size == 1
+            val isNoParamHandler = (isEventReceiver || isPrimaryFunctionName) && function.valueParameters.isEmpty()
+            val isMissingAnnotation = (isEventParamHandler || isNoParamHandler) && !hasHandleEventAnnotation
+            if (isMissingAnnotation && isPublic && !function.hasModifier(KtTokens.OPEN_KEYWORD)) {
+                return holder.registerProblem(
+                    function,
+                    "Event handler function should be annotated with @HandleEvent",
+                    AddHandleEventAnnotationFix()
+                )
+            }
 
             // @HandleEvent on a function that doesn't take a SkyHanniEvent
             if (!isEventParam && !isEventReceiver && !hasExplicitEventType && !isPrimaryFunctionName && hasHandleEventAnnotation) {

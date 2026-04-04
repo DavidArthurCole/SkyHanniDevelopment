@@ -1,5 +1,5 @@
-import io.gitlab.arturbosch.detekt.Detekt
-import io.gitlab.arturbosch.detekt.DetektCreateBaselineTask
+import dev.detekt.gradle.Detekt
+import dev.detekt.gradle.DetektCreateBaselineTask
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
@@ -67,9 +67,9 @@ dependencies {
         bundledPlugin("org.jetbrains.kotlin")
     }
 
-    detektPlugins(libs.detekt.neu)
+    detektPlugins(libs.detektrules.neu)
     detektPlugins(project(":detekt"))
-    detektPlugins(libs.detekt.formatting)
+    detektPlugins(libs.detektrules.ktlint)
 }
 
 // Configure IntelliJ Platform Gradle Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-extension.html
@@ -202,26 +202,20 @@ detekt {
 tasks.withType<Detekt>().configureEach {
     outputs.cacheIf { false } // Custom rules won't work if cached
 
-    val isDetektMain = (this.name == "detektMain")
+    val isDetektMain = name == "detektMain"
     val outputFileName = if (isDetektMain) "main" else "detekt"
     val detektDir = rootProject.layout.buildDirectory.dir("reports/detekt").get().asFile.absolutePath
     reports {
-        html.required.set(true) // observe findings in your browser with structure and code snippets
+        html.required.set(true)
         html.outputLocation.set(file("$detektDir/$outputFileName.html"))
-        xml.required.set(true) // checkstyle like format mainly for integrations like Jenkins
-        xml.outputLocation.set(file("$detektDir/$outputFileName.xml"))
-        sarif.required.set(true) // standardized SARIF format (https://sarifweb.azurewebsites.net/) to support integrations with GitHub Code Scanning
+        sarif.required.set(true)
         sarif.outputLocation.set(file("$detektDir/$outputFileName.sarif"))
-        md.required.set(true) // simple Markdown format
-        md.outputLocation.set(file("$detektDir/$outputFileName.md"))
-        txt.required.set(true)
-        txt.outputLocation.set(file("$detektDir/$outputFileName.txt"))
     }
 }
 
 tasks.withType<DetektCreateBaselineTask>().configureEach {
-    outputs.cacheIf { false } // Custom rules won't work if cached
-    val isMainBaseline = (this.name == "detektBaselineMain")
+    outputs.cacheIf { false }
+    val isMainBaseline = name == "detektBaselineMain"
     val outputFileName = if (isMainBaseline) "baseline-main" else "baseline"
     baseline.set(file(rootProject.layout.projectDirectory.file("detekt/$outputFileName.xml")))
 }

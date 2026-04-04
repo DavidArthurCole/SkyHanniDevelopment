@@ -36,10 +36,15 @@ class ConvertConfigToPropertyIntention :
 
         val file = element.containingKtFile
         if (file.importDirectives.none { it.importedFqName?.asString() == PROPERTY_FQN }) {
-            val importDirective = factory.createFile("import $PROPERTY_FQN\n")
-                .importDirectives
-                .firstOrNull() ?: return
-            (file.importList ?: file).add(importDirective)
+            val importDirective = factory.createFile("import $PROPERTY_FQN\n").importDirectives.firstOrNull() ?: return
+            val importList = file.importList ?: run {
+                file.add(importDirective)
+                return
+            }
+            val insertBefore = importList.imports.firstOrNull { existing ->
+                (existing.importedFqName?.asString() ?: return@firstOrNull false) > PROPERTY_FQN
+            }
+            if (insertBefore != null) importList.addBefore(importDirective, insertBefore) else importList.add(importDirective)
         }
     }
 }

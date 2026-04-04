@@ -29,23 +29,23 @@ private val WRAPPED_REGEX_TEST_PATTERN = "WRAPPED-REGEX-TEST: \"(?<test>.*)\"".t
  * the regex on regex101.com with REGEX-TEST examples pre-populated.
  * Only shown when the regex is a plain string literal (no interpolation).
  */
-/**
- * Returns the index of the regex argument for supported call expressions, or null if the
- * call is not one we handle.
- *
- * - `pattern(key, regex)` → regex is at index 1, exactly 2 args required
- * - `Regex(regex)` / `Regex(regex, options)` → regex is at index 0, at least 1 arg required
- */
-internal fun resolveRegexArgIndex(nameExpr: KtSimpleNameExpression, call: KtCallExpression): Int? {
-    val argCount = call.valueArguments.size
-    return when (nameExpr.getReferencedName()) {
-        "pattern" -> if (argCount == 2) 1 else null
-        "Regex" -> if (argCount >= 1) 0 else null
-        else -> null
-    }
-}
-
 class Regex101LineMarkerProvider : LineMarkerProvider {
+
+    /**
+     * Returns the index of the regex argument for supported call expressions, or null if the
+     * call is not one we handle.
+     *
+     * - `pattern(key, regex)` → regex is at index 1, exactly 2 args required
+     * - `Regex(regex)` / `Regex(regex, options)` → regex is at index 0, at least 1 arg required
+     */
+    internal fun resolveRegexArgIndex(nameExpr: KtSimpleNameExpression, call: KtCallExpression): Int? {
+        val argCount = call.valueArguments.size
+        return when (nameExpr.getReferencedName()) {
+            "pattern" -> if (argCount == 2) 1 else null
+            "Regex" -> if (argCount >= 1) 0 else null
+            else -> null
+        }
+    }
 
     override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? {
         val nameExpr = element as? KtSimpleNameExpression ?: return null

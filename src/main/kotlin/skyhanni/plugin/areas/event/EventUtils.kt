@@ -75,6 +75,7 @@ fun buildPrimaryNameMap(project: Project): Map<String, String> {
  * 2. Single SkyHanniEvent-typed parameter
  * 3. Function name matching a @PrimaryFunction-annotated event class
  */
+@Suppress("ReturnCount")
 fun resolveEventClass(function: KtNamedFunction, project: Project): PsiClass? {
     val scope = GlobalSearchScope.allScope(project)
     val hasHandleEvent = function.annotationEntries.any { it.shortName?.asString() == HANDLE_EVENT_ANNOTATION }
@@ -108,6 +109,7 @@ fun resolveEventClass(function: KtNamedFunction, project: Project): PsiClass? {
         }
     }
 
+    if (!hasHandleEvent) return null
     return buildPrimaryNameMap(project)[function.name.orEmpty()]
         ?.let { JavaPsiFacade.getInstance(project).findClass(it, scope) }
 }

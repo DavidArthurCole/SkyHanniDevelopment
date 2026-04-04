@@ -27,7 +27,7 @@ class EventHandlerInlayHintsProvider : InlayHintsProvider {
 
     override fun createCollector(
         file: PsiFile,
-        editor: Editor
+        editor: Editor,
     ): InlayHintsCollector = object : SharedBypassCollector {
         override fun collectFromElement(element: PsiElement, sink: InlayTreeSink) {
             val function = element as? KtNamedFunction ?: return

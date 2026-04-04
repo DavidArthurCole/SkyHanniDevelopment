@@ -31,7 +31,7 @@ class DuplicatePrimaryFunctionInspection : AbstractKotlinInspection() {
 
     override fun buildVisitor(
         holder: ProblemsHolder,
-        isOnTheFly: Boolean
+        isOnTheFly: Boolean,
     ): PsiElementVisitor = object : KtVisitorVoid() {
         override fun visitClass(klass: KtClass) {
             if (klass.hasModifier(KtTokens.ABSTRACT_KEYWORD)) return

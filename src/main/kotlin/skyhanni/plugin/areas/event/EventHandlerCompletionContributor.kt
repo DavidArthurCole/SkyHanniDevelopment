@@ -115,6 +115,13 @@ private class StubInsertHandler(
     private fun addImportIfMissing(file: KtFile, factory: KtPsiFactory, fqName: String) {
         if (file.importDirectives.any { it.importedFqName?.asString() == fqName }) return
         val importDirective = factory.createFile("import $fqName\n").importDirectives.firstOrNull() ?: return
-        (file.importList ?: file).add(importDirective)
+        val importList = file.importList ?: run {
+            file.add(importDirective)
+            return
+        }
+        val insertBefore = importList.imports.firstOrNull { existing ->
+            (existing.importedFqName?.asString() ?: return@firstOrNull false) > fqName
+        }
+        if (insertBefore != null) importList.addBefore(importDirective, insertBefore) else importList.add(importDirective)
     }
 }
