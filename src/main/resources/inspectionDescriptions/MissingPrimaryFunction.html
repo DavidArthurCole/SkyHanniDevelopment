@@ -1,6 +1,7 @@
 <html lang="en">
 <body>
-Reports concrete <code>SkyHanniEvent</code> subclasses that have no <code>@PrimaryFunction</code> annotation and are not abstract.
+Reports concrete <code>SkyHanniEvent</code> subclasses that have no <code>@PrimaryFunction</code> annotation and are
+neither abstract nor sealed.
 <p>
     Without <code>@PrimaryFunction</code>, handlers must supply an explicit
     <code>eventType = SomeEvent::class</code> argument on <code>@HandleEvent</code>.

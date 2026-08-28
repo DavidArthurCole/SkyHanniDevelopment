@@ -43,7 +43,7 @@ class MissingPrimaryFunctionInspection : AbstractKotlinInspection() {
         isOnTheFly: Boolean,
     ): PsiElementVisitor = object : KtVisitorVoid() {
         override fun visitClass(klass: KtClass) {
-            if (klass.hasModifier(KtTokens.ABSTRACT_KEYWORD)) return
+            if (klass.hasModifier(KtTokens.ABSTRACT_KEYWORD) || klass.hasModifier(KtTokens.SEALED_KEYWORD)) return
             if (klass.isInterface()) return
             checkClassOrObject(klass, holder, isOnTheFly)
         }
