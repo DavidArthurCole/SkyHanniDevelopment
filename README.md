@@ -2,11 +2,6 @@
   SkyHanni Development
 </h1>
 
-<h2 align="center">
-  This project moves to <a href="https://github.com/SkyHanniStudios">SkyHanniStudios</a> on Sunday, October 18.
-  Old links keep working because GitHub redirects them. You don't need to do anything.
-</h2>
-
 ![Build](https://github.com/SkyHanniStudios/SkyHanniDevelopment/workflows/Build/badge.svg)
 
 <!-- Plugin description -->
