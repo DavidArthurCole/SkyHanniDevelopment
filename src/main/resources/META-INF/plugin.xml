@@ -3,7 +3,7 @@
 <idea-plugin>
     <id>skyhanni.plugin</id>
     <name>SkyHanni Development</name>
-    <vendor>hannibal002</vendor>
+    <vendor>SkyHanniStudios</vendor>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.java</depends>

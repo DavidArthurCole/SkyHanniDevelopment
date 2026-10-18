@@ -2,15 +2,10 @@
   SkyHanni Development
 </h1>
 
-<h2 align="center">
-  This project moves to <a href="https://github.com/SkyHanniStudios">SkyHanniStudios</a> on Sunday, October 18.
-  Old links keep working because GitHub redirects them. You don't need to do anything.
-</h2>
-
-![Build](https://github.com/hannibal002/SkyHanniDevelopment/workflows/Build/badge.svg)
+![Build](https://github.com/SkyHanniStudios/SkyHanniDevelopment/workflows/Build/badge.svg)
 
 <!-- Plugin description -->
-An IntelliJ IDE plugin that provides development assistance for the [SkyHanni](https://github.com/hannibal002/SkyHanni) Minecraft Skyblock
+An IntelliJ IDE plugin that provides development assistance for the [SkyHanni](https://github.com/SkyHanniStudios/SkyHanni) Minecraft Skyblock
 mod. It adds inspections, intentions, inlay hints, line markers, and code completion tailored to SkyHanni's event system and configuration
 framework.
 <!-- Plugin description end -->
@@ -106,7 +101,7 @@ Using the IDE built-in plugin system:
 
 Manually:
 
-Download the [latest release](https://github.com/hannibal002/SkyHanniDevelopment/releases/latest) and install it via
+Download the [latest release](https://github.com/SkyHanniStudios/SkyHanniDevelopment/releases/latest) and install it via
 <kbd>Settings</kbd> > <kbd>Plugins</kbd> > <kbd>⚙</kbd> > <kbd>Install plugin from disk...</kbd>
 
 ---
