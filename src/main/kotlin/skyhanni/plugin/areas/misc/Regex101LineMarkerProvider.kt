@@ -25,11 +25,6 @@ private const val WRAPPED_REGEX_TEST_PREFIX = "WRAPPED-REGEX-TEST:"
 private val WRAPPED_REGEX_TEST_PATTERN = "WRAPPED-REGEX-TEST: \"(?<test>.*)\"".toPattern()
 
 /**
- * Adds a gutter icon next to every `pattern(key, regex)` or `Regex(regex)` call that opens
- * the regex on regex101.com with REGEX-TEST examples pre-populated.
- * Only shown when the regex is a plain string literal (no interpolation).
- */
-/**
  * Returns the index of the regex argument for supported call expressions, or null if the
  * call is not one we handle.
  *
