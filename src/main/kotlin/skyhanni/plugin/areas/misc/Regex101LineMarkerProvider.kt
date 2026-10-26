@@ -40,6 +40,11 @@ internal fun resolveRegexArgIndex(nameExpr: KtSimpleNameExpression, call: KtCall
     }
 }
 
+/**
+ * Adds a gutter icon next to every `pattern(key, regex)` or `Regex(regex)` call that opens
+ * the regex on regex101.com with REGEX-TEST examples pre-populated.
+ * Only shown when the regex is a plain string literal (no interpolation).
+ */
 class Regex101LineMarkerProvider : LineMarkerProvider {
 
     override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? {
