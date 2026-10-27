@@ -1,56 +1,56 @@
 package skyhanni.plugin.areas.config
 
-import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtProperty
+import skyhanni.plugin.SkyHanniStub
+import skyhanni.plugin.SkyHanniTestCase
 
-/**
- * Tests for [computeConfigPath].
- *
- * Each test builds a minimal config class hierarchy that mirrors the real SkyHanni
- * package structure so that [computeConfigPath] can walk the reference chain through
- * the PSI index.
- */
-class ComputeConfigPathTest : BasePlatformTestCase() {
+class ComputeConfigPathTest : SkyHanniTestCase() {
 
     fun testTwoLevelHierarchyBuildsCorrectPath() {
-        // Features.inventory -> InventoryConfig.slotCount => "inventory.slotCount"
-        addFeaturesRoot("val inventory: InventoryConfig = InventoryConfig()")
-
-        val childFile = myFixture.addFileToProject(
+        addStubs(SkyHanniStub.MOULCONFIG)
+        myFixture.addFileToProject(
+            "at/hannibal2/skyhanni/config/Features.kt",
+            """
+            package at.hannibal2.skyhanni.config
+            class Features {
+                val inventory: InventoryConfig = InventoryConfig()
+            }
+            """.trimIndent(),
+        )
+        val child = myFixture.addFileToProject(
             "at/hannibal2/skyhanni/config/InventoryConfig.kt",
             """
             package at.hannibal2.skyhanni.config
-            annotation class ConfigOption
+            import io.github.notenoughupdates.moulconfig.annotations.ConfigOption
             class InventoryConfig {
-                @ConfigOption
+                @ConfigOption(name = "", desc = "")
                 var slotCount: Int = 0
             }
-            """.trimIndent()
+            """.trimIndent(),
         ) as KtFile
-
-        assertEquals("inventory.slotCount", computeConfigPath(property(childFile, "InventoryConfig", "slotCount")))
+        assertEquals("inventory.slotCount", computeConfigPath(property(child, "InventoryConfig", "slotCount")))
     }
 
     fun testAbstractClassReturnsNull() {
-        val ktFile = myFixture.configureByText(
+        addStubs(SkyHanniStub.MOULCONFIG)
+        val file = myFixture.configureByText(
             "AbstractConfig.kt",
             """
             package at.hannibal2.skyhanni.config
-            annotation class ConfigOption
+            import io.github.notenoughupdates.moulconfig.annotations.ConfigOption
             abstract class AbstractConfig {
-                @ConfigOption
+                @ConfigOption(name = "", desc = "")
                 var someField: Int = 0
             }
-            """.trimIndent()
+            """.trimIndent(),
         ) as KtFile
-
-        assertNull(computeConfigPath(property(ktFile, "AbstractConfig", "someField")))
+        assertNull(computeConfigPath(property(file, "AbstractConfig", "someField")))
     }
 
     fun testProfileStorageRootTerminatesWalk() {
-        // ProfileSpecificStorage is a recognized root FQN, so the walk stops there.
+        addStubs(SkyHanniStub.MOULCONFIG)
         myFixture.addFileToProject(
             "at/hannibal2/skyhanni/config/storage/ProfileSpecificStorage.kt",
             """
@@ -59,38 +59,23 @@ class ComputeConfigPathTest : BasePlatformTestCase() {
             class ProfileSpecificStorage {
                 val profile: ProfileConfig = ProfileConfig()
             }
-            """.trimIndent()
+            """.trimIndent(),
         )
-
-        val childFile = myFixture.addFileToProject(
+        val child = myFixture.addFileToProject(
             "at/hannibal2/skyhanni/config/ProfileConfig.kt",
             """
             package at.hannibal2.skyhanni.config
-            annotation class ConfigOption
+            import io.github.notenoughupdates.moulconfig.annotations.ConfigOption
             class ProfileConfig {
-                @ConfigOption
+                @ConfigOption(name = "", desc = "")
                 var xp: Int = 0
             }
-            """.trimIndent()
+            """.trimIndent(),
         ) as KtFile
-
-        assertEquals("profile.xp", computeConfigPath(property(childFile, "ProfileConfig", "xp")))
+        assertEquals("profile.xp", computeConfigPath(property(child, "ProfileConfig", "xp")))
     }
 
-    private fun addFeaturesRoot(body: String) {
-        myFixture.addFileToProject(
-            "at/hannibal2/skyhanni/config/Features.kt",
-            """
-            package at.hannibal2.skyhanni.config
-            class Features {
-                $body
-            }
-            """.trimIndent()
-        )
-    }
-
-    private fun property(file: KtFile, className: String, propName: String): KtProperty =
+    private fun property(file: KtFile, className: String, name: String): KtProperty =
         (file.declarations.first { it.name == className } as KtClass)
-            .declarations.filterIsInstance<KtProperty>()
-            .first { it.name == propName }
+            .declarations.filterIsInstance<KtProperty>().first { it.name == name }
 }

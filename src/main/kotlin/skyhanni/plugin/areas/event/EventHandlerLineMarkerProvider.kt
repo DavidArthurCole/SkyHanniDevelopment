@@ -5,80 +5,49 @@ import com.intellij.codeInsight.daemon.LineMarkerProvider
 import com.intellij.codeInsight.navigation.NavigationGutterIconBuilder
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.editor.markup.GutterIconRenderer
-import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.PsiElement
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.util.InheritanceUtil
-import org.jetbrains.kotlin.lexer.KtTokens
-import org.jetbrains.kotlin.psi.KtClass
+import org.jetbrains.kotlin.analysis.api.analyze
+import org.jetbrains.kotlin.psi.KtClassOrObject
+import org.jetbrains.kotlin.psi.KtNamedDeclaration
 import org.jetbrains.kotlin.psi.KtNamedFunction
-import org.jetbrains.kotlin.psi.KtObjectDeclaration
+import skyhanni.plugin.SkyHanniBundle
+import skyhanni.plugin.api.isAbstract
+import skyhanni.plugin.api.isSkyHanniEventClass
 
 class EventHandlerLineMarkerProvider : LineMarkerProvider {
-
     override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? = null
 
-    override fun collectSlowLineMarkers(
-        elements: List<PsiElement>,
-        result: MutableCollection<in LineMarkerInfo<*>>,
-    ) {
-        val project = elements.firstOrNull()?.project ?: return
-        val facade = JavaPsiFacade.getInstance(project)
-        val scope = GlobalSearchScope.allScope(project)
-
+    override fun collectSlowLineMarkers(elements: List<PsiElement>, result: MutableCollection<in LineMarkerInfo<*>>) {
         for (element in elements) {
-            val parent = element.parent
-            val namedId = (parent as? KtNamedFunction)?.nameIdentifier
-            val classId = (parent as? KtClass)?.nameIdentifier
-            val objectId = (parent as? KtObjectDeclaration)?.nameIdentifier
-            if (element != namedId && element != classId && element != objectId) continue
-            buildMarker(element, parent, facade, scope, project)?.let(result::add)
+            val declaration = element.parent as? KtNamedDeclaration ?: continue
+            if (declaration.nameIdentifier != element) continue
+            val marker = when (declaration) {
+                is KtNamedFunction -> handlerMarker(element, declaration)
+                is KtClassOrObject -> eventMarker(element, declaration)
+                else -> null
+            }
+            marker?.let(result::add)
         }
     }
 
-    private fun buildMarker(
-        element: PsiElement,
-        parent: PsiElement,
-        facade: JavaPsiFacade,
-        scope: GlobalSearchScope,
-        project: com.intellij.openapi.project.Project,
-    ): LineMarkerInfo<*>? = when (parent) {
-        is KtNamedFunction -> {
-            val eventClass = resolveEventClass(parent, project) ?: return null
-            NavigationGutterIconBuilder.create(AllIcons.Gutter.ImplementedMethod)
-                .setTargets(eventClass)
-                .setTooltipText("Handles event: ${eventClass.name}")
-                .setAlignment(GutterIconRenderer.Alignment.LEFT)
-                .createLineMarkerInfo(element)
-        }
+    private fun handlerMarker(anchor: PsiElement, function: KtNamedFunction): LineMarkerInfo<*>? {
+        val eventClass = resolveEventClass(function) ?: return null
+        return NavigationGutterIconBuilder.create(AllIcons.Gutter.ImplementedMethod)
+            .setTargets(eventClass)
+            .setTooltipText(SkyHanniBundle.message("event.lineMarker.handles", eventClass.name.orEmpty()))
+            .setAlignment(GutterIconRenderer.Alignment.LEFT)
+            .createLineMarkerInfo(anchor)
+    }
 
-        is KtClass -> {
-            if (parent.hasModifier(KtTokens.ABSTRACT_KEYWORD)) return null
-            val fqName = parent.fqName?.asString() ?: return null
-            val psiClass = facade.findClass(fqName, scope) ?: return null
-            if (!InheritanceUtil.isInheritor(psiClass, SKYHANNI_EVENT_FQN)) return null
-            val handlers = findHandlersForEvent(psiClass, project).takeIf { it.isNotEmpty() } ?: return null
-            NavigationGutterIconBuilder.create(AllIcons.Gutter.OverridenMethod)
-                .setTargets(handlers)
-                .setTooltipText("Handled by ${handlers.size} handler(s)")
-                .setPopupTitle("Event Handlers")
-                .setAlignment(GutterIconRenderer.Alignment.LEFT)
-                .createLineMarkerInfo(element)
-        }
-
-        is KtObjectDeclaration -> {
-            val fqName = parent.fqName?.asString() ?: return null
-            val psiClass = facade.findClass(fqName, scope) ?: return null
-            if (!InheritanceUtil.isInheritor(psiClass, SKYHANNI_EVENT_FQN)) return null
-            val handlers = findHandlersForEvent(psiClass, project).takeIf { it.isNotEmpty() } ?: return null
-            NavigationGutterIconBuilder.create(AllIcons.Gutter.OverridenMethod)
-                .setTargets(handlers)
-                .setTooltipText("Handled by ${handlers.size} handler(s)")
-                .setPopupTitle("Event Handlers")
-                .setAlignment(GutterIconRenderer.Alignment.LEFT)
-                .createLineMarkerInfo(element)
-        }
-
-        else -> null
+    private fun eventMarker(anchor: PsiElement, klass: KtClassOrObject): LineMarkerInfo<*>? {
+        if (klass.isAbstract()) return null
+        if (!analyze(klass) { isSkyHanniEventClass(klass) }) return null
+        val handlers = findHandlersForEvent(klass).takeIf { it.isNotEmpty() } ?: return null
+        return NavigationGutterIconBuilder.create(AllIcons.Gutter.OverridenMethod)
+            .setTargets(handlers)
+            .setTooltipText(SkyHanniBundle.message("event.lineMarker.handledBy", handlers.size))
+            .setPopupTitle(SkyHanniBundle.message("event.lineMarker.popupTitle"))
+            .setAlignment(GutterIconRenderer.Alignment.LEFT)
+            .createLineMarkerInfo(anchor)
     }
 }

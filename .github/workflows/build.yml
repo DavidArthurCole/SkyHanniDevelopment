@@ -3,7 +3,6 @@
 # - Run 'test' and 'verifyPlugin' tasks.
 # - Run Qodana inspections.
 # - Run the 'buildPlugin' task and prepare artifact for further tests.
-# - Run the 'runPluginVerifier' task.
 # - Create a draft release.
 #
 # The workflow is triggered on push and pull_request events.
@@ -161,7 +160,7 @@ jobs:
       # Run Qodana inspections
       - name: Qodana - Code Inspection
         # Check this version against the `qodana` in ./gradle/libs.versions.toml
-        uses: JetBrains/qodana-action@v2025.3.2
+        uses: JetBrains/qodana-action@v2026.2.2
         with:
           cache-default-branch-only: true
 

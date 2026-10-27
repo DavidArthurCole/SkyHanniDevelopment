@@ -1,62 +1,48 @@
 package skyhanni.plugin.areas.config
 
-import com.intellij.codeInsight.intention.preview.IntentionPreviewInfo
 import com.intellij.codeInspection.LocalQuickFix
 import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
-import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.modcommand.ModCommand
+import com.intellij.modcommand.ModCommandQuickFix
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiElementVisitor
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.kotlin.idea.codeinsight.api.classic.inspections.AbstractKotlinInspection
-import org.jetbrains.kotlin.psi.KtClassOrObject
+import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.psi.KtProperty
-import org.jetbrains.kotlin.psi.KtVisitorVoid
-import java.awt.datatransfer.StringSelection
+import org.jetbrains.kotlin.psi.KtVisitor
+import org.jetbrains.kotlin.psi.propertyVisitor
+import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
+import skyhanni.plugin.SkyHanniBundle
+import skyhanni.plugin.api.inspections.SkyHanniInspection
+import skyhanni.plugin.api.isAbstract
 
-class CopyConfigPathInspection : AbstractKotlinInspection() {
+class CopyConfigPathInspection : SkyHanniInspection<KtProperty, CopyConfigPathInspection.Context>() {
 
-    override fun getDisplayName() = "Copy config path for a @ConfigOption or @Category property"
-    override fun getShortName() = "CopyConfigPath"
-    override fun getGroupDisplayName() = "SkyHanni"
-    override fun isEnabledByDefault() = true
+    object Context : Problem {
+        override val message = SkyHanniBundle.message("config.problem.copyPath")
+        override val highlightType = ProblemHighlightType.INFORMATION
+        override val fixes: List<LocalQuickFix> = listOf(CopyConfigPathFix())
+    }
 
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor =
-        object : KtVisitorVoid() {
-            override fun visitProperty(property: KtProperty) {
-                if (!property.isConfigAnnotated()) return
-                val containingClass = PsiTreeUtil.getParentOfType(property, KtClassOrObject::class.java) ?: return
-                if (containingClass.isAbstract()) return
-                holder.registerProblem(
-                    property.nameIdentifier ?: property,
-                    "Copy config path",
-                    ProblemHighlightType.INFORMATION,
-                    CopyConfigPathFix()
-                )
-            }
-        }
+    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): KtVisitor<*, *> =
+        propertyVisitor { visitTargetElement(it, holder, isOnTheFly) }
+
+    override fun isApplicableByPsi(element: KtProperty): Boolean =
+        element.containingClassOrObject?.isAbstract() == false
+
+    override fun getApplicableRanges(element: KtProperty): List<TextRange> = nameIdentifierRange(element)
+
+    override fun KaSession.prepareContext(element: KtProperty): Context? = Context.takeIf { element.isConfigAnnotated() }
 }
 
-private class CopyConfigPathFix : LocalQuickFix {
+private class CopyConfigPathFix : ModCommandQuickFix() {
+    override fun getFamilyName() = SkyHanniBundle.message("config.fix.copyPath")
 
-    override fun getName() = "Copy config path"
-    override fun getFamilyName() = name
-
-    override fun generatePreview(project: Project, previewDescriptor: ProblemDescriptor): IntentionPreviewInfo =
-        IntentionPreviewInfo.EMPTY
-
-    override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-        val prop = PsiTreeUtil.getParentOfType(descriptor.psiElement, KtProperty::class.java) ?: return
-        val path = computeConfigPath(prop) ?: return
-
-        CopyPasteManager.getInstance().setContents(StringSelection(path))
-
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup(NOTIFICATION_GROUP)
-            .createNotification("Copied: $path", NotificationType.INFORMATION)
-            .notify(project)
+    override fun perform(project: Project, descriptor: ProblemDescriptor): ModCommand {
+        val property = PsiTreeUtil.getParentOfType(descriptor.psiElement, KtProperty::class.java) ?: return ModCommand.nop()
+        val path = computeConfigPath(property) ?: return ModCommand.nop()
+        return ModCommand.copyToClipboard(path).andThen(ModCommand.info(SkyHanniBundle.message("config.notification.copied", path)))
     }
 }

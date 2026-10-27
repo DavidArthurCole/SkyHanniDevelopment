@@ -5,7 +5,6 @@ functions annotated with <code>@HandleEvent</code> incorrectly.
 <p>
     A function is considered an event handler if its single parameter extends <code>SkyHanniEvent</code>,
     or if its name matches a <code>@PrimaryFunction</code> declaration on an event class.
-    The function must also be <code>private</code>.
 </p>
 <pre><code>
   // Missing annotation - will be flagged:
@@ -16,8 +15,8 @@ functions annotated with <code>@HandleEvent</code> incorrectly.
   private fun onSomething(event: SkyHanniEvent) { }
   </code></pre>
 <!-- tooltip end -->
-<p>Also reports <code>@HandleEvent</code> on non-private functions (a quick fix adds the
-    <code>private</code> modifier), and on functions that do not take a
-    <code>SkyHanniEvent</code> parameter and have no explicit <code>eventType</code> argument.</p>
+<p>Also reports <code>@HandleEvent</code> on functions that do not take a
+    <code>SkyHanniEvent</code> parameter and have no explicit <code>eventType</code> argument.
+    A quick fix removes the annotation.</p>
 </body>
 </html>

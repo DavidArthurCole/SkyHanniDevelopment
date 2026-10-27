@@ -13,108 +13,80 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.PsiElement
 import com.intellij.util.ProcessingContext
 import org.jetbrains.kotlin.lexer.KtTokens
+import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtObjectDeclaration
-import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
+import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
+import skyhanni.plugin.api.SkyHanniIds
+import skyhanni.plugin.api.ensureImport
 
-/**
- * Suggests primary function names (from @PrimaryFunction-annotated SkyHanniEvent subclasses)
- * when typing a function name inside a KtObjectDeclaration. Selecting a suggestion inserts
- * a complete @HandleEvent handler stub and adds the necessary imports.
- */
-// TODO Add unit tests
 class EventHandlerCompletionContributor : CompletionContributor() {
     init {
         extend(
             CompletionType.BASIC,
-            PlatformPatterns.psiElement(KtTokens.IDENTIFIER)
-                .withParent(KtNamedFunction::class.java)
-                .inside(KtObjectDeclaration::class.java),
+            PlatformPatterns.psiElement(KtTokens.IDENTIFIER).inside(KtNamedFunction::class.java),
             EventHandlerCompletionProvider(),
         )
     }
 }
 
 private class EventHandlerCompletionProvider : CompletionProvider<CompletionParameters>() {
-    override fun addCompletions(
-        parameters: CompletionParameters,
-        context: ProcessingContext,
-        result: CompletionResultSet,
-    ) {
+    override fun addCompletions(parameters: CompletionParameters, context: ProcessingContext, result: CompletionResultSet) {
         val position = parameters.position
-        val function = position.parent as? KtNamedFunction ?: return
-        if (function.nameIdentifier != position) return
+        val function = position.getParentOfType<KtNamedFunction>(strict = true) ?: return
+        if (!function.isNamePosition(position)) return
         val objectDecl = function.containingClassOrObject as? KtObjectDeclaration ?: return
-
-        val project = position.project
-        val primaryNameMap = buildPrimaryNameMap(project)
-        if (primaryNameMap.isEmpty()) return
-
-        val existingNames = objectDecl.declarations
-            .filterIsInstance<KtNamedFunction>()
-            .mapNotNullTo(mutableSetOf()) { it.name }
-
-        for ((primaryName, eventFqn) in primaryNameMap) {
+        val primaryNames = PrimaryFunctionIndex.get(position.project)
+        if (primaryNames.isEmpty()) return
+        val existingNames = objectDecl.declarations.filterIsInstance<KtNamedFunction>().mapNotNullTo(mutableSetOf()) { it.name }
+        for ((primaryName, classId) in primaryNames) {
             if (primaryName in existingNames) continue
-            val eventSimpleName = eventFqn.substringAfterLast('.')
+            val eventName = classId.shortClassName.asString()
             result.addElement(
                 LookupElementBuilder.create(primaryName)
-                    .withTypeText(eventSimpleName)
+                    .withTypeText(eventName)
                     .withIcon(AllIcons.Nodes.Method)
                     .bold()
-                    .withInsertHandler(StubInsertHandler(primaryName, eventSimpleName, eventFqn))
+                    .withInsertHandler(StubInsertHandler(primaryName, classId)),
             )
         }
     }
 }
 
-private class StubInsertHandler(
-    private val primaryName: String,
-    private val eventSimpleName: String,
-    private val eventFqn: String,
-) : InsertHandler<LookupElement> {
+private fun KtNamedFunction.isNamePosition(position: PsiElement): Boolean {
+    if (nameIdentifier == position) return true
+    val incomplete = bodyExpression == null && valueParameters.isEmpty()
+    return incomplete && receiverTypeReference?.textRange?.contains(position.textRange) == true
+}
 
+private class StubInsertHandler(private val primaryName: String, private val eventClassId: ClassId) : InsertHandler<LookupElement> {
     override fun handleInsert(context: InsertionContext, item: LookupElement) {
-        // Prevent IntelliJ from appending extra characters after the selected name
         context.setAddCompletionChar(false)
-
         val project = context.project
         val document = context.document
-        PsiDocumentManager.getInstance(project).commitDocument(document)
-
-        val file = PsiDocumentManager.getInstance(project).getPsiFile(document) as? KtFile ?: return
+        val documentManager = PsiDocumentManager.getInstance(project)
+        documentManager.commitDocument(document)
+        val file = documentManager.getPsiFile(document) as? KtFile ?: return
         val elementAtStart = file.findElementAt(context.startOffset) ?: return
-        val function = PsiTreeUtil.getParentOfType(elementAtStart, KtNamedFunction::class.java, false) ?: return
-
-        val stubText = "@$HANDLE_EVENT_ANNOTATION\nfun $primaryName(event: $eventSimpleName) {\n\n}"
+        val function = elementAtStart.getParentOfType<KtNamedFunction>(strict = false) ?: return
+        val eventName = eventClassId.shortClassName.asString()
+        val handleEventName = SkyHanniIds.HANDLE_EVENT.shortClassName.asString()
+        val stubText = "@$handleEventName\nfun $primaryName(event: $eventName) {\n\n}"
         val functionStart = function.textRange.startOffset
         val functionEnd = function.textRange.endOffset
-
         WriteCommandAction.runWriteCommandAction(project) {
             document.replaceString(functionStart, functionEnd, stubText)
-            PsiDocumentManager.getInstance(project).commitDocument(document)
-
-            val newFile = PsiDocumentManager.getInstance(project).getPsiFile(document) as? KtFile
-                ?: return@runWriteCommandAction
-            val factory = KtPsiFactory(project)
-            addImportIfMissing(newFile, factory, HANDLE_EVENT_FQN)
-            addImportIfMissing(newFile, factory, eventFqn)
-            PsiDocumentManager.getInstance(project).doPostponedOperationsAndUnblockDocument(document)
-
-            // Place caret on the blank line inside the body
-            val bodyOffset = functionStart + stubText.indexOfLast { it == '{' } + 2
-            context.editor.caretModel.moveToOffset(bodyOffset)
+            documentManager.commitDocument(document)
+            val newFile = documentManager.getPsiFile(document) as? KtFile ?: return@runWriteCommandAction
+            newFile.ensureImport(SkyHanniIds.HANDLE_EVENT.asSingleFqName())
+            newFile.ensureImport(eventClassId.asSingleFqName())
+            documentManager.doPostponedOperationsAndUnblockDocument(document)
+            context.editor.caretModel.moveToOffset(functionStart + stubText.indexOfLast { it == '{' } + 2)
         }
-    }
-
-    private fun addImportIfMissing(file: KtFile, factory: KtPsiFactory, fqName: String) {
-        if (file.importDirectives.any { it.importedFqName?.asString() == fqName }) return
-        val importDirective = factory.createFile("import $fqName\n").importDirectives.firstOrNull() ?: return
-        (file.importList ?: file).add(importDirective)
     }
 }

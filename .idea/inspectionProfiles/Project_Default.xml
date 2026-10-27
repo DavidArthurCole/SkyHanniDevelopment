@@ -4,6 +4,5 @@
     <inspection_tool class="CopyConfigPath" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="EditorConfigKeyCorrectness" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="EventLinkingInspection" enabled="true" level="WARNING" enabled_by_default="true" />
-    <inspection_tool class="SkyHanniModuleInspection" enabled="true" level="WARNING" enabled_by_default="true" />
   </profile>
 </component>

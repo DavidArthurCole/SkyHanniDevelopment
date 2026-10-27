@@ -8,18 +8,10 @@ style:
         active: false
     UnusedParameter:
         active: true
-        ignoreAnnotated:
-            - 'SubscribeEvent'
-            - 'HandleEvent'
-            - 'Mod.EventHandler'
     ReturnCount:
         active: true
         max: 5
         excludeGuardClauses: true
-        ignoreAnnotated:
-            - 'SubscribeEvent'
-            - 'HandleEvent'
-            - 'Mod.EventHandler'
     MaxLineLength:
         active: true
         maxLineLength: 140
@@ -59,15 +51,9 @@ ktlint:
         active: false
     ParameterListWrapping: # pedantic, can be useful in compact code
         active: false
-    CommentSpacing: # handled by custom rule
-        active: false
     SpacingBetweenDeclarationsWithAnnotations: # nah
         active: false
     SpacingBetweenDeclarationsWithComments: # also nah
-        active: false
-    ImportOrdering: # handled by custom rule
-        active: false
-    AnnotationSpacing: # handled by custom rule
         active: false
     FunctionReturnTypeSpacing:
         maxLineLength: 140
@@ -113,8 +99,6 @@ complexity:
         allowedFunctionsPerInterface: 20
         allowedFunctionsPerObject: 20
         allowedFunctionsPerEnum: 11
-        ignoreAnnotated:
-            - 'SkyHanniModule'
     ComplexCondition: # aggressive by default, at a complexity of 4
         active: true
         allowedConditions: 6

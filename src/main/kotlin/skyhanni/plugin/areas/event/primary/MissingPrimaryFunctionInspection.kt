@@ -1,101 +1,53 @@
 package skyhanni.plugin.areas.event.primary
 
 import com.intellij.codeInspection.LocalQuickFix
-import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ProblemsHolder
+import com.intellij.modcommand.ModPsiUpdater
 import com.intellij.openapi.project.Project
-import com.intellij.psi.JavaPsiFacade
-import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.util.InheritanceUtil
-import org.jetbrains.kotlin.idea.codeinsight.api.classic.inspections.AbstractKotlinInspection
-import org.jetbrains.kotlin.lexer.KtTokens
-import org.jetbrains.kotlin.psi.KtClass
+import com.intellij.openapi.util.TextRange
+import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.idea.codeinsight.api.applicable.inspections.KotlinModCommandQuickFix
 import org.jetbrains.kotlin.psi.KtClassOrObject
-import org.jetbrains.kotlin.psi.KtFile
-import org.jetbrains.kotlin.psi.KtObjectDeclaration
-import org.jetbrains.kotlin.psi.KtPsiFactory
-import org.jetbrains.kotlin.psi.KtVisitorVoid
-import skyhanni.plugin.areas.event.PRIMARY_FUNCTION_ANNOTATION
-import skyhanni.plugin.areas.event.PRIMARY_FUNCTION_FQN
-import skyhanni.plugin.areas.event.SKYHANNI_EVENT_FQN
-import skyhanni.plugin.areas.event.buildPrimaryNameMap
+import org.jetbrains.kotlin.psi.KtVisitor
+import org.jetbrains.kotlin.psi.classOrObjectVisitor
+import skyhanni.plugin.SkyHanniBundle
+import skyhanni.plugin.api.SkyHanniIds
+import skyhanni.plugin.api.addAnnotation
+import skyhanni.plugin.api.hasAnnotation
+import skyhanni.plugin.api.inspections.SkyHanniInspection
+import skyhanni.plugin.api.isAbstract
+import skyhanni.plugin.api.isSkyHanniEventClass
+import skyhanni.plugin.areas.event.PrimaryFunctionIndex
 
-/**
- * Warns on concrete (non-abstract) SkyHanniEvent subclasses that have no @PrimaryFunction annotation.
- * These events can only be handled via explicit eventType = ... in @HandleEvent, which is verbose.
- * Adding @PrimaryFunction enables parameterless handlers and cleaner code.
- *
- * Where a candidate name can be derived and is not already taken, a quick fix is offered.
- *
- * Suppressable via @Suppress("MissingPrimaryFunction").
- */
-class MissingPrimaryFunctionInspection : AbstractKotlinInspection() {
+class MissingPrimaryFunctionInspection : SkyHanniInspection<KtClassOrObject, MissingPrimaryFunctionInspection.Context>() {
 
-    override fun getDisplayName() = "Event should have @PrimaryFunction or be abstract"
-    override fun getShortName() = "MissingPrimaryFunction"
-    override fun getGroupDisplayName() = "SkyHanni"
-    override fun isEnabledByDefault() = true
-
-    override fun buildVisitor(
-        holder: ProblemsHolder,
-        isOnTheFly: Boolean,
-    ): PsiElementVisitor = object : KtVisitorVoid() {
-        override fun visitClass(klass: KtClass) {
-            if (klass.hasModifier(KtTokens.ABSTRACT_KEYWORD) || klass.hasModifier(KtTokens.SEALED_KEYWORD)) return
-            if (klass.isInterface()) return
-            checkClassOrObject(klass, holder, isOnTheFly)
-        }
-
-        override fun visitObjectDeclaration(declaration: KtObjectDeclaration) {
-            checkClassOrObject(declaration, holder, isOnTheFly)
-        }
+    class Context(candidate: String?) : Problem {
+        override val message = SkyHanniBundle.message("primary.problem.missing")
+        override val highlightType = ProblemHighlightType.WEAK_WARNING
+        override val fixes: List<LocalQuickFix> = listOfNotNull(candidate?.let(::AddPrimaryFunctionFix))
     }
 
-    private fun checkClassOrObject(classOrObject: KtClassOrObject, holder: ProblemsHolder, isOnTheFly: Boolean) {
-        if (classOrObject.annotationEntries.any { it.shortName?.asString() == PRIMARY_FUNCTION_ANNOTATION }) return
+    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): KtVisitor<*, *> =
+        classOrObjectVisitor { visitTargetElement(it, holder, isOnTheFly) }
 
-        val fqName = classOrObject.fqName?.asString() ?: return
-        val project = classOrObject.project
-        val psiClass = JavaPsiFacade.getInstance(project)
-            .findClass(fqName, GlobalSearchScope.allScope(project)) ?: return
-        if (!InheritanceUtil.isInheritor(psiClass, SKYHANNI_EVENT_FQN)) return
+    override fun isApplicableByPsi(element: KtClassOrObject): Boolean = !element.isAbstract() && element.name != null
 
-        val className = classOrObject.name ?: return
-        val stripped = if (className.endsWith("Event")) className.dropLast(5) else className
-        val candidate = "on$stripped"
+    override fun getApplicableRanges(element: KtClassOrObject): List<TextRange> = nameIdentifierRange(element)
 
-        val fix = if (candidate !in buildPrimaryNameMap(project).keys) AddPrimaryFunctionFix(candidate) else null
-
-        holder.registerProblem(
-            holder.manager.createProblemDescriptor(
-                classOrObject.nameIdentifier ?: return,
-                "Event should either have a @PrimaryFunction, or be abstract",
-                fix,
-                ProblemHighlightType.WEAK_WARNING,
-                isOnTheFly,
-            )
-        )
+    override fun KaSession.prepareContext(element: KtClassOrObject): Context? {
+        if (hasAnnotation(element, SkyHanniIds.PRIMARY_FUNCTION) || !isSkyHanniEventClass(element)) return null
+        val candidate = "on" + element.name.orEmpty().removeSuffix("Event")
+        return Context(candidate.takeUnless { it in PrimaryFunctionIndex.all(element.project) })
     }
+}
 
-    private class AddPrimaryFunctionFix(private val name: String) : LocalQuickFix {
-        override fun getName() = "Add @PrimaryFunction(\"$name\")"
-        override fun getFamilyName() = "Add @PrimaryFunction"
+private class AddPrimaryFunctionFix(private val name: String) : KotlinModCommandQuickFix<KtClassOrObject>() {
+    override fun getFamilyName() = SkyHanniBundle.message("primary.fix.add.family")
 
-        override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-            val classOrObject = descriptor.psiElement.parent as? KtClassOrObject ?: return
-            val factory = KtPsiFactory(project)
-            val annotation = factory.createAnnotationEntry("@${PRIMARY_FUNCTION_ANNOTATION}(\"$name\")")
-            classOrObject.addAnnotationEntry(annotation)
-            val file = classOrObject.containingFile as? KtFile ?: return
-            addImportIfMissing(file, factory, PRIMARY_FUNCTION_FQN)
-        }
+    override fun getName() = SkyHanniBundle.message("primary.fix.add", name)
 
-        private fun addImportIfMissing(file: KtFile, factory: KtPsiFactory, fqName: String) {
-            if (file.importDirectives.any { it.importedFqName?.asString() == fqName }) return
-            val importDirective = factory.createFile("import $fqName\n").importDirectives.firstOrNull() ?: return
-            (file.importList ?: file).add(importDirective)
-        }
+    override fun applyFix(project: Project, element: KtClassOrObject, updater: ModPsiUpdater) {
+        element.addAnnotation(SkyHanniIds.PRIMARY_FUNCTION, "\"$name\"")
     }
 }

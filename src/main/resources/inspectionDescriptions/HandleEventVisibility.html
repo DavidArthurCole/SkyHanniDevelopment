@@ -1,0 +1,18 @@
+<html lang="en">
+<body>
+Reports <code>@HandleEvent</code> functions that are not declared <code>private</code>.
+<p>
+    Event handlers are invoked by the SkyHanni event bus through the module registry, never called directly,
+    so they should not widen the module's public surface. Overrides are exempt because their visibility is
+    fixed by the parent declaration.
+</p>
+<pre><code>
+  @HandleEvent
+  fun onSomething(event: SkyHanniEvent) { }
+
+  @HandleEvent
+  private fun onSomething(event: SkyHanniEvent) { }
+  </code></pre>
+<p>A quick fix adds the <code>private</code> modifier.</p>
+</body>
+</html>

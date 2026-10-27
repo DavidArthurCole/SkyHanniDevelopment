@@ -10,57 +10,36 @@ import com.intellij.codeInsight.hints.declarative.PsiPointerInlayActionNavigatio
 import com.intellij.codeInsight.hints.declarative.PsiPointerInlayActionPayload
 import com.intellij.codeInsight.hints.declarative.SharedBypassCollector
 import com.intellij.openapi.editor.Editor
-import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.SmartPointerManager
-import com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.kotlin.psi.KtNamedFunction
+import skyhanni.plugin.api.SkyHanniIds
+import skyhanni.plugin.api.hasAnnotation
 
-/**
- * Injects a grayed-out, clickable event class name inside the `()` of parameterless
- * functions whose names match a @PrimaryFunction annotation on a SkyHanniEvent subclass.
- *
- * Uses the declarative V2 inlay hints API for correct baseline vertical alignment.
- */
 class EventHandlerInlayHintsProvider : InlayHintsProvider {
-
-    override fun createCollector(
-        file: PsiFile,
-        editor: Editor,
-    ): InlayHintsCollector = object : SharedBypassCollector {
+    override fun createCollector(file: PsiFile, editor: Editor): InlayHintsCollector = object : SharedBypassCollector {
         override fun collectFromElement(element: PsiElement, sink: InlayTreeSink) {
             val function = element as? KtNamedFunction ?: return
             if (function.valueParameters.isNotEmpty()) return
-
             val name = function.name ?: return
-            val primaryNameMap = buildPrimaryNameMap(function.project)
-            val eventFqn = primaryNameMap[name] ?: return
             val paramList = function.valueParameterList ?: return
-
-            val eventClass = JavaPsiFacade.getInstance(function.project)
-                .findClass(eventFqn, GlobalSearchScope.allScope(function.project))
-                ?: return
-
+            if (!function.hasAnnotation(SkyHanniIds.HANDLE_EVENT)) return
+            val eventClass = PrimaryFunctionIndex.eventClass(function.project, name) ?: return
             val eventName = eventClass.name ?: return
             val pointer = SmartPointerManager.createPointer(eventClass)
-
-            // Insert just after the opening `(`
-            val offset = paramList.textRange.startOffset + 1
-
             sink.addPresentation(
-                position = InlineInlayPosition(offset, relatedToPrevious = true),
+                position = InlineInlayPosition(paramList.textRange.startOffset + 1, relatedToPrevious = true),
                 hintFormat = HintFormat.default,
             ) {
                 text(
                     text = "$eventName::class",
                     actionData = InlayActionData(
                         payload = PsiPointerInlayActionPayload(pointer),
-                        handlerId = PsiPointerInlayActionNavigationHandler.HANDLER_ID
-                    )
+                        handlerId = PsiPointerInlayActionNavigationHandler.HANDLER_ID,
+                    ),
                 )
             }
         }
     }
 }
-

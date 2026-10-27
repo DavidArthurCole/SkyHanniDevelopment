@@ -1,7 +1,7 @@
 package skyhanni.plugin.areas.event.primary
 
-import com.intellij.openapi.util.TextRange
 import com.intellij.patterns.PlatformPatterns
+import com.intellij.psi.ElementManipulators
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementResolveResult
 import com.intellij.psi.PsiPolyVariantReferenceBase
@@ -11,21 +11,19 @@ import com.intellij.psi.PsiReferenceProvider
 import com.intellij.psi.PsiReferenceRegistrar
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.search.PsiShortNamesCache
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.ProcessingContext
+import org.jetbrains.kotlin.analysis.api.analyze
+import org.jetbrains.kotlin.idea.stubindex.KotlinFunctionShortNameIndex
 import org.jetbrains.kotlin.psi.KtAnnotationEntry
-import org.jetbrains.kotlin.psi.KtLiteralStringTemplateEntry
-import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
-import skyhanni.plugin.areas.event.PRIMARY_FUNCTION_ANNOTATION
+import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
+import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
+import skyhanni.plugin.api.SkyHanniIds
+import skyhanni.plugin.api.constantText
+import skyhanni.plugin.api.hasAnnotation
+import skyhanni.plugin.api.resolvesTo
 
-/**
- * Makes the string literal inside @PrimaryFunction("onTick") a multi-target reference.
- * Ctrl+clicking it opens a popup listing all handler functions with that name in objects.
- */
-// TODO Add unit tests
 class PrimaryFunctionReferenceContributor : PsiReferenceContributor() {
     override fun registerReferenceProviders(registrar: PsiReferenceRegistrar) {
         registrar.registerReferenceProvider(
@@ -37,40 +35,26 @@ class PrimaryFunctionReferenceContributor : PsiReferenceContributor() {
 
 private class PrimaryFunctionReferenceProvider : PsiReferenceProvider() {
     override fun getReferencesByElement(element: PsiElement, context: ProcessingContext): Array<PsiReference> {
-        val str = element as? KtStringTemplateExpression ?: return PsiReference.EMPTY_ARRAY
-        val annotation = PsiTreeUtil.getParentOfType(str, KtAnnotationEntry::class.java)
-            ?: return PsiReference.EMPTY_ARRAY
-        if (annotation.shortName?.asString() != PRIMARY_FUNCTION_ANNOTATION) return PsiReference.EMPTY_ARRAY
-        if (str.textLength < 2) return PsiReference.EMPTY_ARRAY
-        return arrayOf(PrimaryFunctionReference(str))
+        val template = element as? KtStringTemplateExpression ?: return PsiReference.EMPTY_ARRAY
+        val entry = template.getStrictParentOfType<KtAnnotationEntry>() ?: return PsiReference.EMPTY_ARRAY
+        if (template.constantText().isNullOrEmpty()) return PsiReference.EMPTY_ARRAY
+        if (!analyze(entry) { resolvesTo(entry, SkyHanniIds.PRIMARY_FUNCTION) }) return PsiReference.EMPTY_ARRAY
+        return arrayOf(PrimaryFunctionReference(template))
     }
 }
 
 private class PrimaryFunctionReference(
     element: KtStringTemplateExpression,
-) : PsiPolyVariantReferenceBase<KtStringTemplateExpression>(
-    element,
-    TextRange(1, element.textLength - 1),
-) {
-    override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> {
-        val name = element.entries
-            .filterIsInstance<KtLiteralStringTemplateEntry>()
-            .joinToString("") { it.text }
-            .takeIf { it.isNotEmpty() }
-            ?: return ResolveResult.EMPTY_ARRAY
+) : PsiPolyVariantReferenceBase<KtStringTemplateExpression>(element, ElementManipulators.getValueTextRange(element)) {
 
+    override fun multiResolve(incompleteCode: Boolean): Array<ResolveResult> {
+        val name = element.constantText()?.takeIf { it.isNotEmpty() } ?: return ResolveResult.EMPTY_ARRAY
         val project = element.project
-        val scope = GlobalSearchScope.projectScope(project)
-        return PsiShortNamesCache.getInstance(project)
-            .getMethodsByName(name, scope)
-            .mapNotNull { method ->
-                val fn = method.navigationElement as? KtNamedFunction ?: return@mapNotNull null
-                if (PsiTreeUtil.getParentOfType(fn, KtObjectDeclaration::class.java) == null) return@mapNotNull null
-                PsiElementResolveResult(fn)
-            }
+        return KotlinFunctionShortNameIndex.Helper.get(name, project, GlobalSearchScope.projectScope(project))
+            .filter { it.containingClassOrObject is KtObjectDeclaration && it.hasAnnotation(SkyHanniIds.HANDLE_EVENT) }
+            .map(::PsiElementResolveResult)
             .toTypedArray()
     }
 
-    // Suppress rename refactoring - this is a descriptive name, not a symbol reference
-    override fun handleElementRename(newElementName: String) = element
+    override fun handleElementRename(newElementName: String): PsiElement = element
 }

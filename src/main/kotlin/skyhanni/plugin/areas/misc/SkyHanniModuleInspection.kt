@@ -1,110 +1,91 @@
 package skyhanni.plugin.areas.misc
 
 import com.intellij.codeInspection.LocalQuickFix
-import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ProblemsHolder
+import com.intellij.modcommand.ModPsiUpdater
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.search.PsiShortNamesCache
-import org.jetbrains.kotlin.idea.codeinsight.api.classic.inspections.AbstractKotlinInspection
-import org.jetbrains.kotlin.idea.util.AnnotationModificationHelper
-import org.jetbrains.kotlin.name.FqName
+import com.intellij.openapi.util.TextRange
+import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.idea.codeinsight.api.applicable.inspections.KotlinModCommandQuickFix
+import org.jetbrains.kotlin.name.isSubpackageOf
+import org.jetbrains.kotlin.psi.KtCallExpression
 import org.jetbrains.kotlin.psi.KtClass
-import org.jetbrains.kotlin.psi.KtNamedDeclaration
+import org.jetbrains.kotlin.psi.KtClassOrObject
+import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.kotlin.psi.KtProperty
-import org.jetbrains.kotlin.psi.KtVisitorVoid
+import org.jetbrains.kotlin.psi.KtVisitor
+import org.jetbrains.kotlin.psi.classOrObjectVisitor
+import skyhanni.plugin.SkyHanniBundle
+import skyhanni.plugin.api.SkyHanniIds
+import skyhanni.plugin.api.addAnnotation
+import skyhanni.plugin.api.hasAnnotation
+import skyhanni.plugin.api.inspections.SkyHanniInspection
+import skyhanni.plugin.api.isCallTo
 
-private const val SUBSCRIBE_EVENT_ANNOTATION = "SubscribeEvent"
-private const val HANDLE_EVENT_ANNOTATION = "HandleEvent"
-private const val SKYHANNI_MODULE_ANNOTATION = "SkyHanniModule"
-private const val SKYHANNI_MODULE_FQN = "at.hannibal2.skyhanni.skyhannimodule.SkyHanniModule"
-private const val SKYHANNI_PATH = "at.hannibal2.skyhanni"
-private const val REPO_PATTERN_GROUP_FQN = "at.hannibal2.skyhanni.utils.repopatterns.RepoPatternGroup"
-private const val PATTERN_FQN = "java.util.regex.Pattern"
+class SkyHanniModuleInspection : SkyHanniInspection<KtClassOrObject, SkyHanniModuleInspection.Context>() {
 
-class SkyHanniModuleInspection : AbstractKotlinInspection() {
-
-    override fun getDisplayName() = "Module should have a @SkyHanniModule annotation"
-    override fun getShortName() = "SkyHanniModuleInspection"
-    override fun getGroupDisplayName() = "SkyHanni"
-    override fun isEnabledByDefault() = true
-
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor =
-        object : KtVisitorVoid() {
-
-            override fun visitClass(klass: KtClass) {
-                if (!isFromSkyhanni(klass)) return
-                if (klass.annotationEntries.any { it.shortName?.asString() == SKYHANNI_MODULE_ANNOTATION }) {
-                    holder.registerProblem(
-                        klass.nameIdentifier ?: return,
-                        "@SkyHanniModule can only be applied to objects",
-                        ProblemHighlightType.GENERIC_ERROR
-                    )
-                }
-            }
-
-            override fun visitObjectDeclaration(declaration: KtObjectDeclaration) {
-                if (!isFromSkyhanni(declaration)) return
-                if (declaration.annotationEntries.any { it.shortName?.asString() == SKYHANNI_MODULE_ANNOTATION }) return
-
-                val body = declaration.body ?: return
-                val hasSkyHanniEvents = body.functions.any { isEventHandler(it) }
-                val hasRepoPatterns = body.properties.any { isRepoPattern(it) }
-                if (!hasSkyHanniEvents && !hasRepoPatterns) return
-
-                holder.registerProblem(
-                    declaration,
-                    "Module should have a @SkyHanniModule annotation",
-                    AddSkyHanniModuleFix()
-                )
-            }
+    sealed interface Context : Problem {
+        object WrongTarget : Context {
+            override val message = SkyHanniBundle.message("module.problem.onlyObjects")
+            override val highlightType = ProblemHighlightType.GENERIC_ERROR
         }
-}
 
-private fun isEventHandler(function: KtNamedFunction): Boolean =
-    function.annotationEntries.any {
-        val name = it.shortName?.asString()
-        name == HANDLE_EVENT_ANNOTATION || name == SUBSCRIBE_EVENT_ANNOTATION
+        object Missing : Context {
+            override val message = SkyHanniBundle.message("module.problem.missing")
+            override val fixes: List<LocalQuickFix> = listOf(AddSkyHanniModuleFix())
+        }
     }
 
-private fun isRepoPattern(property: KtProperty): Boolean {
-    val typeRef = property.typeReference ?: return false
-    val rawTypeName = typeRef.text
-        .substringBefore('<')
-        .substringBefore('?')
+    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): KtVisitor<*, *> =
+        classOrObjectVisitor { visitTargetElement(it, holder, isOnTheFly) }
 
-    val psiClass = PsiShortNamesCache.getInstance(property.project)
-        .getClassesByName(rawTypeName, GlobalSearchScope.projectScope(property.project))
-        .firstOrNull() ?: return false
+    override fun isApplicableByPsi(element: KtClassOrObject): Boolean = element.name != null
 
-    return when (psiClass.qualifiedName) {
-        REPO_PATTERN_GROUP_FQN -> true
-        PATTERN_FQN -> property.hasDelegate()
-        else -> false
+    override fun getApplicableRanges(element: KtClassOrObject): List<TextRange> = nameIdentifierRange(element)
+
+    override fun KaSession.prepareContext(element: KtClassOrObject): Context? {
+        if (!isFromSkyHanni(element)) return null
+        val annotated = hasAnnotation(element, SkyHanniIds.SKYHANNI_MODULE)
+        if (element is KtClass) return Context.WrongTarget.takeIf { annotated }
+        if (element !is KtObjectDeclaration || annotated) return null
+        val body = element.body ?: return null
+        val hasHandlers = body.functions.any { isEventHandler(it) }
+        val hasRepoPatterns = body.properties.any { isRepoPattern(it) }
+        return Context.Missing.takeIf { hasHandlers || hasRepoPatterns }
+    }
+
+    private fun isFromSkyHanni(element: KtClassOrObject): Boolean {
+        val packageName = element.getClassId()?.packageFqName ?: return false
+        return packageName.isSubpackageOf(SkyHanniIds.SKYHANNI_PACKAGE) || packageName == SkyHanniIds.SKYHANNI_PACKAGE
+    }
+
+    private fun KaSession.isEventHandler(function: KtNamedFunction): Boolean =
+        hasAnnotation(function, SkyHanniIds.HANDLE_EVENT)
+
+    private fun KaSession.isRepoPattern(property: KtProperty): Boolean {
+        val type = property.symbol.returnType
+        if (type.isSubtypeOf(SkyHanniIds.REPO_PATTERN) ||
+            type.isSubtypeOf(SkyHanniIds.REPO_PATTERN_GROUP) ||
+            type.isSubtypeOf(SkyHanniIds.REPO_PATTERN_LIST)
+        ) {
+            return true
+        }
+        if (!property.hasDelegate()) return false
+        val delegate = property.delegateExpression
+        val call = delegate as? KtCallExpression
+            ?: (delegate as? KtDotQualifiedExpression)?.selectorExpression as? KtCallExpression
+            ?: return false
+        return isCallTo(call, SkyHanniIds.REPO_PATTERN_FACTORIES)
     }
 }
 
-private fun isFromSkyhanni(declaration: KtNamedDeclaration): Boolean =
-    declaration.fqName?.asString()?.startsWith(SKYHANNI_PATH) == true
+private class AddSkyHanniModuleFix : KotlinModCommandQuickFix<KtClassOrObject>() {
+    override fun getFamilyName() = SkyHanniBundle.message("module.fix.add")
 
-private class AddSkyHanniModuleFix : LocalQuickFix {
-    override fun getName() = "Annotate with @SkyHanniModule"
-    override fun getFamilyName() = name
-
-    override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-        val obj = descriptor.psiElement as? KtObjectDeclaration ?: return
-        AnnotationModificationHelper.addAnnotation(
-            obj,
-            FqName(SKYHANNI_MODULE_FQN),
-            null,
-            null,
-            { null },
-            " ",
-            null
-        )
+    override fun applyFix(project: Project, element: KtClassOrObject, updater: ModPsiUpdater) {
+        element.addAnnotation(SkyHanniIds.SKYHANNI_MODULE)
     }
 }

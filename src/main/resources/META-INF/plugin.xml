@@ -1,5 +1,4 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
-<!--suppress PluginXmlI18n -->
 <idea-plugin>
     <id>skyhanni.plugin</id>
     <name>SkyHanni Development</name>
@@ -13,18 +12,16 @@
 
     <!-- We need to specify that we support K2 mode -->
     <extensions defaultExtensionNs="org.jetbrains.kotlin">
-        <supportsKotlinPluginMode supportsK2="true"/>
+        <supportsKotlinPluginMode supportsK1="false" supportsK2="true"/>
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">
-        <postStartupActivity
-            implementation="skyhanni.plugin.startup.SkyHanniPluginActivity"/>
-
         <!-- Must be declared so NotificationGroupManager can find it at runtime -->
         <notificationGroup
             id="SkyHanni Plugin"
             displayType="BALLOON"
-            isLogByDefault="false"/>
+            isLogByDefault="false"
+            key="notification.group.skyhanni"/>
 
         <!-- Inlay hints -->
         <codeInsight.declarativeInlayProvider
@@ -36,9 +33,14 @@
             nameKey="inlay.hints.event.primaryfunction.name"
             bundle="messages.SkyHanniBundle"/>
 
-        <codeInsight.inlayProvider
+        <codeInsight.declarativeInlayProvider
             language="kotlin"
-            implementationClass="skyhanni.plugin.areas.config.ConfigPathInlayHintsProvider"/>
+            implementationClass="skyhanni.plugin.areas.config.ConfigPathInlayHintsProvider"
+            isEnabledByDefault="true"
+            group="OTHER_GROUP"
+            providerId="skyhanni.config.path"
+            nameKey="inlay.hints.config.path.name"
+            bundle="messages.SkyHanniBundle"/>
 
         <!-- Line markers -->
         <codeInsight.lineMarkerProvider
@@ -52,8 +54,9 @@
         <!-- Inspections -->
         <localInspection
             language="kotlin"
-            groupName="SkyHanni"
-            displayName="Event handler function should be annotated with @HandleEvent"
+            groupKey="inspection.group.skyhanni"
+            key="inspection.handleEvent.displayName"
+            bundle="messages.SkyHanniBundle"
             shortName="HandleEventInspection"
             enabledByDefault="true"
             level="WARNING"
@@ -61,8 +64,19 @@
 
         <localInspection
             language="kotlin"
-            groupName="SkyHanni"
-            displayName="Event should have @PrimaryFunction or be abstract"
+            groupKey="inspection.group.skyhanni"
+            key="inspection.handleEventVisibility.displayName"
+            bundle="messages.SkyHanniBundle"
+            shortName="HandleEventVisibility"
+            enabledByDefault="true"
+            level="WEAK WARNING"
+            implementationClass="skyhanni.plugin.areas.event.HandleEventVisibilityInspection"/>
+
+        <localInspection
+            language="kotlin"
+            groupKey="inspection.group.skyhanni"
+            key="inspection.missingPrimaryFunction.displayName"
+            bundle="messages.SkyHanniBundle"
             shortName="MissingPrimaryFunction"
             enabledByDefault="true"
             level="WEAK WARNING"
@@ -70,8 +84,9 @@
 
         <localInspection
             language="kotlin"
-            groupName="SkyHanni"
-            displayName="Handler function name does not match @PrimaryFunction for the event"
+            groupKey="inspection.group.skyhanni"
+            key="inspection.mismatchedPrimaryFunction.displayName"
+            bundle="messages.SkyHanniBundle"
             shortName="MismatchedPrimaryFunctionName"
             enabledByDefault="true"
             level="WARNING"
@@ -79,8 +94,9 @@
 
         <localInspection
             language="kotlin"
-            groupName="SkyHanni"
-            displayName="Multiple events use the same @PrimaryFunction name"
+            groupKey="inspection.group.skyhanni"
+            key="inspection.duplicatePrimaryFunction.displayName"
+            bundle="messages.SkyHanniBundle"
             shortName="DuplicatePrimaryFunction"
             enabledByDefault="true"
             level="WARNING"
@@ -88,8 +104,9 @@
 
         <localInspection
             language="kotlin"
-            groupName="SkyHanni"
-            displayName="Module should have a @SkyHanniModule annotation"
+            groupKey="inspection.group.skyhanni"
+            key="inspection.skyHanniModule.displayName"
+            bundle="messages.SkyHanniBundle"
             shortName="SkyHanniModuleInspection"
             enabledByDefault="true"
             level="WARNING"
@@ -97,8 +114,9 @@
 
         <localInspection
             language="kotlin"
-            groupName="SkyHanni"
-            displayName="Copy config path for a @ConfigOption property"
+            groupKey="inspection.group.skyhanni"
+            key="inspection.copyConfigPath.displayName"
+            bundle="messages.SkyHanniBundle"
             shortName="CopyConfigPath"
             enabledByDefault="true"
             level="INFORMATION"
@@ -116,25 +134,29 @@
         <!-- Completion -->
         <completion.contributor
             language="kotlin"
+            order="first, before KotlinCompletionContributor"
             implementationClass="skyhanni.plugin.areas.event.EventHandlerCompletionContributor"/>
 
         <!-- Intentions -->
         <intentionAction>
             <language>kotlin</language>
             <className>skyhanni.plugin.areas.config.ConvertConfigToPropertyIntention</className>
-            <category>SkyHanni</category>
+            <bundleName>messages.SkyHanniBundle</bundleName>
+            <categoryKey>intention.category.skyhanni</categoryKey>
         </intentionAction>
 
         <intentionAction>
             <language>kotlin</language>
             <className>skyhanni.plugin.areas.config.NavigateToConfigIntention</className>
-            <category>SkyHanni</category>
+            <bundleName>messages.SkyHanniBundle</bundleName>
+            <categoryKey>intention.category.skyhanni</categoryKey>
         </intentionAction>
 
         <intentionAction>
             <language>kotlin</language>
             <className>skyhanni.plugin.areas.config.CreateConfigMigrationIntention</className>
-            <category>SkyHanni</category>
+            <bundleName>messages.SkyHanniBundle</bundleName>
+            <categoryKey>intention.category.skyhanni</categoryKey>
         </intentionAction>
 
         <!-- Spellchecking -->

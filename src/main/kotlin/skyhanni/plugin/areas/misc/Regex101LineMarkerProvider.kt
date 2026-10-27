@@ -5,64 +5,40 @@ import com.intellij.codeInsight.daemon.LineMarkerProvider
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.editor.markup.GutterIconRenderer
-import com.intellij.openapi.util.text.StringUtil.pluralize
 import com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.analysis.api.analyze
 import org.jetbrains.kotlin.kdoc.psi.api.KDoc
+import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtCallExpression
-import org.jetbrains.kotlin.psi.KtEscapeStringTemplateEntry
-import org.jetbrains.kotlin.psi.KtLiteralStringTemplateEntry
 import org.jetbrains.kotlin.psi.KtProperty
-import org.jetbrains.kotlin.psi.KtSimpleNameExpression
 import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 import org.jetbrains.kotlin.psi.KtValueArgument
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
+import skyhanni.plugin.SkyHanniBundle
+import skyhanni.plugin.api.SkyHanniIds
+import skyhanni.plugin.api.constantText
+import skyhanni.plugin.api.isCallTo
+import skyhanni.plugin.api.isConstructorOf
+import skyhanni.plugin.api.parameterNameOf
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
-private const val REGEX_TEST_PREFIX = "REGEX-TEST: "
-private const val REGEX_FAIL_PREFIX = "REGEX-FAIL: "
-private const val WRAPPED_REGEX_TEST_PREFIX = "WRAPPED-REGEX-TEST:"
-private val WRAPPED_REGEX_TEST_PATTERN = "WRAPPED-REGEX-TEST: \"(?<test>.*)\"".toPattern()
-
-/**
- * Returns the index of the regex argument for supported call expressions, or null if the
- * call is not one we handle.
- *
- * - `pattern(key, regex)` → regex is at index 1, exactly 2 args required
- * - `Regex(regex)` / `Regex(regex, options)` → regex is at index 0, at least 1 arg required
- */
-internal fun resolveRegexArgIndex(nameExpr: KtSimpleNameExpression, call: KtCallExpression): Int? {
-    val argCount = call.valueArguments.size
-    return when (nameExpr.getReferencedName()) {
-        "pattern" -> if (argCount == 2) 1 else null
-        "Regex" -> if (argCount >= 1) 0 else null
-        else -> null
-    }
-}
-
-/**
- * Adds a gutter icon next to every `pattern(key, regex)` or `Regex(regex)` call that opens
- * the regex on regex101.com with REGEX-TEST examples pre-populated.
- * Only shown when the regex is a plain string literal (no interpolation).
- */
 class Regex101LineMarkerProvider : LineMarkerProvider {
 
     override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? {
-        val nameExpr = element as? KtSimpleNameExpression ?: return null
-        val call = nameExpr.parent as? KtCallExpression ?: return null
-
-        val regexArgIndex = resolveRegexArgIndex(nameExpr, call) ?: return null
+        if (element.node.elementType != KtTokens.IDENTIFIER) return null
+        val call = element.parent?.parent as? KtCallExpression ?: return null
+        if (call.calleeExpression != element.parent) return null
         val property = call.getParentOfType<KtProperty>(strict = true) ?: return null
-        val regexArg = call.valueArguments[regexArgIndex]
-        val info = RegexInfo(regexArg, property.docComment)
+        val regexArg = resolveRegexArg(call) ?: return null
+        val info = RegexInfo.from(regexArg, property.docComment) ?: return null
 
-        val regexText = info.getRegexText()?.replace("\"", "\\\"") ?: return null
-        val examples = info.getExamples()
-        val url = buildUrl(regexText, examples)
-        val tooltip = "Open on regex101.com" + examples.size.takeIf { it > 0 }?.let {
-            val testFormat = pluralize("test", it)
-            " ($it regex $testFormat)"
-        }.orEmpty()
+        val url = buildUrl(info.regex.replace("\"", "\\\""), info.examples)
+        val tooltip = if (info.examples.isEmpty()) {
+            SkyHanniBundle.message("regex101.tooltip")
+        } else {
+            SkyHanniBundle.message("regex101.tooltip.withTests", info.examples.size)
+        }
 
         return LineMarkerInfo(
             element,
@@ -71,8 +47,19 @@ class Regex101LineMarkerProvider : LineMarkerProvider {
             { tooltip },
             { _, _ -> BrowserUtil.browse(url) },
             GutterIconRenderer.Alignment.LEFT,
-            { tooltip }
+            { tooltip },
         )
+    }
+
+    private fun resolveRegexArg(call: KtCallExpression): KtValueArgument? = analyze(call) {
+        when {
+            isCallTo(call, SkyHanniIds.REPO_PATTERN_PATTERN) -> call.valueArguments.firstOrNull { argument ->
+                val expression = argument.getArgumentExpression() ?: return@firstOrNull false
+                parameterNameOf(call, expression)?.asString() == "fallback"
+            }
+            isConstructorOf(call, SkyHanniIds.KOTLIN_REGEX) -> call.valueArguments.firstOrNull()
+            else -> null
+        }
     }
 
     private fun buildUrl(regex: String, examples: List<String>): String = "https://regex101.com/?" +
@@ -84,38 +71,28 @@ class Regex101LineMarkerProvider : LineMarkerProvider {
         URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20")
 }
 
-internal class RegexInfo(
-    private val regexArg: KtValueArgument,
-    private val comment: KDoc?,
-) {
-    fun getRegexText(): String? {
-        val template = regexArg.getArgumentExpression() as? KtStringTemplateExpression ?: return null
-        val sb = StringBuilder()
-        for (entry in template.entries) {
-            when (entry) {
-                is KtEscapeStringTemplateEntry -> sb.append(entry.unescapedValue)
-                is KtLiteralStringTemplateEntry -> sb.append(entry.text)
-                else -> return null
-            }
+internal class RegexInfo private constructor(val regex: String, val examples: List<String>) {
+    companion object {
+        fun from(regexArg: KtValueArgument, comment: KDoc?): RegexInfo? {
+            val template = regexArg.getArgumentExpression() as? KtStringTemplateExpression ?: return null
+            val regex = template.constantText() ?: return null
+            return RegexInfo(regex, examples(comment))
         }
-        return sb.toString()
-    }
 
-    fun getExamples(): List<String> = buildList {
-        val lines = commentText ?: return@buildList
-        lines.filter { it.startsWith(REGEX_TEST_PREFIX) || it.startsWith(REGEX_FAIL_PREFIX) }
-            .map { it.substring(REGEX_TEST_PREFIX.length) }
-            .let(::addAll)
-        lines.filter { it.startsWith(WRAPPED_REGEX_TEST_PREFIX) }
-            .mapNotNull { line ->
-                val matcher = WRAPPED_REGEX_TEST_PATTERN.matcher(line)
-                if (matcher.matches()) matcher.group("test") else null
-            }
-            .let(::addAll)
-    }
+        private fun examples(comment: KDoc?): List<String> = buildList {
+            val lines = commentLines(comment) ?: return@buildList
+            lines.filter { it.startsWith(REGEX_TEST_PREFIX) || it.startsWith(REGEX_FAIL_PREFIX) }
+                .map { it.substring(REGEX_TEST_PREFIX.length) }
+                .let(::addAll)
+            lines.filter { it.startsWith(WRAPPED_REGEX_TEST_PREFIX) }
+                .mapNotNull { line ->
+                    val matcher = WRAPPED_REGEX_TEST_PATTERN.matcher(line)
+                    if (matcher.matches()) matcher.group("test") else null
+                }
+                .let(::addAll)
+        }
 
-    private val commentText: List<String>? by lazy {
-        comment?.text
+        private fun commentLines(comment: KDoc?): List<String>? = comment?.text
             ?.replace("/*", "")
             ?.replace("*/", "")
             ?.lines()

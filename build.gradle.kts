@@ -1,8 +1,9 @@
 import dev.detekt.gradle.Detekt
-import dev.detekt.gradle.DetektCreateBaselineTask
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 import java.util.Properties
 
 plugins {
@@ -30,12 +31,16 @@ version = providers.gradleProperty("pluginVersion").get()
 // Set the JVM language level used to build the project.
 kotlin {
     jvmToolchain(21)
+    compilerOptions {
+        apiVersion = KotlinVersion.KOTLIN_2_4
+        languageVersion = KotlinVersion.KOTLIN_2_4
+        jvmTarget = JvmTarget.JVM_21
+    }
 }
 
 // Configure project's dependencies
 repositories {
     mavenCentral()
-    maven("https://maven.notenoughupdates.org/releases") // NEU detekt rules
     // IntelliJ Platform Gradle Plugin Repositories Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-repositories-extension.html
     intellijPlatform {
         defaultRepositories()
@@ -64,14 +69,10 @@ dependencies {
         bundledModules(providers.gradleProperty("platformBundledModules").map { it.split(',') })
 
         testFramework(TestFrameworkType.Platform)
-
-        // Depends on both java and kotlin plugins
-        bundledPlugin("com.intellij.java")
-        bundledPlugin("org.jetbrains.kotlin")
+        testFramework(TestFrameworkType.Plugin.Kotlin)
+        testBundledPlugins("com.intellij.modules.ultimate")
     }
 
-    detektPlugins(libs.detektrules.neu)
-    detektPlugins(project(":detekt"))
     detektPlugins(libs.detektrules.ktlint)
 }
 
@@ -154,10 +155,6 @@ kover {
 }
 
 tasks {
-    wrapper {
-        gradleVersion = providers.gradleProperty("gradleVersion").get()
-    }
-
     publishPlugin {
         dependsOn(patchChangelog)
     }
@@ -173,40 +170,19 @@ val targetProjectPath: String =
         ?: providers.gradleProperty("targetProjectPath").orNull
         ?: ""
 
-intellijPlatformTesting {
-    runIde {
-        register("runIdeForUiTests") {
-            task {
-                jvmArgumentProviders += CommandLineArgumentProvider {
-                    listOf(
-                        "-Drobot-server.port=8082",
-                        "-Dide.mac.message.dialogs.as.sheets=false",
-                        "-Djb.privacy.policy.text=<!--999.999-->",
-                        "-Djb.consents.confirmation.enabled=false",
-                    )
-                }
-                if (targetProjectPath.isNotBlank()) {
-                    args(targetProjectPath)
-                }
-            }
-
-            plugins {
-                robotServerPlugin()
-            }
-        }
+tasks.runIde {
+    if (targetProjectPath.isNotBlank()) {
+        args(targetProjectPath)
     }
 }
 
 detekt {
     buildUponDefaultConfig = true
     config.setFrom(rootProject.layout.projectDirectory.file("detekt/detekt.yml"))
-    baseline = file(rootProject.layout.projectDirectory.file("detekt/baseline-main.xml"))
     source.setFrom(project.sourceSets.named("main").map { it.allSource })
 }
 
 tasks.withType<Detekt>().configureEach {
-    outputs.cacheIf { false } // Custom rules won't work if cached
-
     val isDetektMain = name == "detektMain"
     val outputFileName = if (isDetektMain) "main" else "detekt"
     val detektDir = rootProject.layout.buildDirectory.dir("reports/detekt").get().asFile.absolutePath
@@ -216,13 +192,6 @@ tasks.withType<Detekt>().configureEach {
         sarif.required.set(true)
         sarif.outputLocation.set(file("$detektDir/$outputFileName.sarif"))
     }
-}
-
-tasks.withType<DetektCreateBaselineTask>().configureEach {
-    outputs.cacheIf { false } // Custom rules won't work if cached
-    val isMainBaseline = (this.name == "detektBaselineMain")
-    val outputFileName = if (isMainBaseline) "baseline-main" else "baseline"
-    baseline.set(file(rootProject.layout.projectDirectory.file("detekt/$outputFileName.xml")))
 }
 
 versionCatalogUpdate {

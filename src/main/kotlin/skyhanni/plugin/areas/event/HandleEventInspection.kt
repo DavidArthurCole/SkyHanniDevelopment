@@ -1,188 +1,100 @@
 package skyhanni.plugin.areas.event
 
 import com.intellij.codeInspection.LocalQuickFix
-import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ProblemsHolder
+import com.intellij.modcommand.ModPsiUpdater
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.psi.search.PsiShortNamesCache
-import com.intellij.psi.util.InheritanceUtil
-import org.jetbrains.kotlin.idea.codeinsight.api.classic.inspections.AbstractKotlinInspection
-import org.jetbrains.kotlin.idea.util.AnnotationModificationHelper
+import com.intellij.openapi.util.TextRange
+import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.analysis.api.symbols.KaSymbolVisibility
+import org.jetbrains.kotlin.idea.codeinsight.api.applicable.inspections.KotlinModCommandQuickFix
 import org.jetbrains.kotlin.lexer.KtTokens
-import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.psi.KtAnnotationEntry
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtObjectDeclaration
-import org.jetbrains.kotlin.psi.KtVisitorVoid
+import org.jetbrains.kotlin.psi.KtVisitor
+import org.jetbrains.kotlin.psi.namedFunctionVisitor
 import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
+import skyhanni.plugin.SkyHanniBundle
+import skyhanni.plugin.api.SkyHanniIds
+import skyhanni.plugin.api.addAnnotation
+import skyhanni.plugin.api.annotation
+import skyhanni.plugin.api.classArguments
+import skyhanni.plugin.api.classPsi
+import skyhanni.plugin.api.inspections.SkyHanniInspection
+import skyhanni.plugin.api.isSkyHanniEvent
 
-private const val EVENT_TYPE_PARAM = "eventType"
-private const val EVENT_TYPES_PARAM = "eventTypes"
-private val eventParams = setOf(EVENT_TYPE_PARAM, EVENT_TYPES_PARAM)
+class HandleEventInspection : SkyHanniInspection<KtNamedFunction, HandleEventInspection.Context>() {
 
-class HandleEventInspection : AbstractKotlinInspection() {
+    sealed interface Context : Problem {
+        class MissingByType(eventName: String) : Context {
+            override val message = SkyHanniBundle.message("event.problem.seemsToHandle", eventName)
+            override val fixes: List<LocalQuickFix> = listOf(AddHandleEventFix())
+        }
 
-    override fun getDisplayName() = "Event handler function should be annotated with @HandleEvent"
-    override fun getShortName() = "HandleEventInspection"
-    override fun getGroupDisplayName() = "SkyHanni"
-    override fun isEnabledByDefault() = true
+        class MissingByName(eventName: String) : Context {
+            override val message = SkyHanniBundle.message("event.problem.nameMatchesPrimary", eventName)
+            override val highlightType = ProblemHighlightType.WARNING
+            override val fixes: List<LocalQuickFix> = listOf(AddHandleEventFix())
+        }
 
-    override fun buildVisitor(
-        holder: ProblemsHolder,
-        isOnTheFly: Boolean,
-    ): PsiElementVisitor = object : KtVisitorVoid() {
-        // TODO cut function in smaller functions
-        @Suppress("LongMethod")
-        override fun visitNamedFunction(function: KtNamedFunction) {
-            if (function.containingClassOrObject !is KtObjectDeclaration) return
-            val functionName = function.name ?: return
-            val primaryNameMap = buildPrimaryNameMap(function.project)
-
-            val hasHandleEventAnnotation = function.annotationEntries
-                .any { it.shortName?.asString() == HANDLE_EVENT_ANNOTATION }
-
-            val isPrimaryFunctionName = primaryNameMap.containsKey(functionName)
-
-            // K2 compatibility guard - type resolution can throw in K2 mode
-            val isEventParam = run {
-                val typeRef = function.valueParameters.firstOrNull()?.typeReference ?: return@run false
-                val rawType = typeRef.text
-                    .substringBefore('<')
-                    .substringBefore('?')
-                    .substringAfterLast('.')
-                val scope = GlobalSearchScope.allScope(function.project)
-                PsiShortNamesCache.getInstance(function.project)
-                    .getClassesByName(rawType, scope)
-                    .any { InheritanceUtil.isInheritor(it, SKYHANNI_EVENT_FQN) }
-            }
-
-            val isEventReceiver = run {
-                val typeRef = function.receiverTypeReference ?: return@run false
-                val rawType = typeRef.text
-                    .substringBefore('<')
-                    .substringBefore('?')
-                    .substringAfterLast('.')
-                val scope = GlobalSearchScope.allScope(function.project)
-                PsiShortNamesCache.getInstance(function.project)
-                    .getClassesByName(rawType, scope)
-                    .any { InheritanceUtil.isInheritor(it, SKYHANNI_EVENT_FQN) }
-            }
-
-            val annotationEntry = function.annotationEntries
-                .find { it.shortName?.asString() == HANDLE_EVENT_ANNOTATION }
-
-            val valueArguments = annotationEntry?.valueArguments.orEmpty()
-            val hasExplicitEventType = valueArguments.any { arg ->
-                val argName = arg.getArgumentName()?.asName?.asString()
-                val position = valueArguments.indexOf(arg)
-                val expressionText = arg.getArgumentExpression()?.text.orEmpty()
-                argName in eventParams || position == 0 && expressionText.isNotEmpty()
-            }
-
-            // @HandleEvent function should be private.
-            // Overrides are exempt: their visibility is constrained by the parent declaration.
-            if (hasHandleEventAnnotation &&
-                !function.hasModifier(KtTokens.PRIVATE_KEYWORD) &&
-                !function.hasModifier(KtTokens.OVERRIDE_KEYWORD)
-            ) {
-                holder.registerProblem(
-                    function.nameIdentifier ?: function,
-                    "Event handler function should be private",
-                    ProblemHighlightType.WEAK_WARNING,
-                    MakeEventHandlerPrivateFix(),
-                )
-            }
-
-            // Missing @HandleEvent on a clear event handler.
-            // Overrides without an explicit public modifier are excluded: their actual visibility
-            // may be internal or less and cannot be determined without type resolution.
-            @Suppress("ComplexCondition")
-            if ((
-                    isEventParam && function.valueParameters.size == 1 || isEventReceiver &&
-                        function.valueParameters.isEmpty() && !function.hasModifier(KtTokens.PRIVATE_KEYWORD)
-                    ) &&
-                !hasHandleEventAnnotation &&
-                !function.hasModifier(KtTokens.OPEN_KEYWORD) &&
-                !(
-                    function.hasModifier(KtTokens.OVERRIDE_KEYWORD) &&
-                        !function.hasModifier(KtTokens.PUBLIC_KEYWORD)
-                    )
-            ) {
-                val typeText = when {
-                    isEventParam -> function.valueParameters.firstOrNull()?.typeReference?.text
-                    else -> function.receiverTypeReference?.text
-                }
-                val eventClass = typeText
-                    ?.substringBefore('<')
-                    ?.substringBefore('?')
-                    ?.substringAfterLast('.')
-                val message = if (eventClass != null) {
-                    "Function seems to handle $eventClass. Add @HandleEvent if this is an event handler."
-                } else {
-                    "Event handler function should be annotated with @HandleEvent"
-                }
-                return holder.registerProblem(
-                    function.nameIdentifier ?: function,
-                    message,
-                    AddHandleEventAnnotationFix(),
-                )
-            }
-
-            // Missing @HandleEvent on a function whose name matches a @PrimaryFunction declaration.
-            if (isPrimaryFunctionName &&
-                !hasHandleEventAnnotation &&
-                !function.hasModifier(KtTokens.OPEN_KEYWORD) &&
-                !(
-                    function.hasModifier(KtTokens.OVERRIDE_KEYWORD) &&
-                        !function.hasModifier(KtTokens.PUBLIC_KEYWORD)
-                    )
-            ) {
-                val eventClass = primaryNameMap[functionName]?.substringAfterLast('.') ?: functionName
-                holder.registerProblem(
-                    function.nameIdentifier ?: function,
-                    "Function name matches @PrimaryFunction of $eventClass. " +
-                        "Either add @HandleEvent if this is an event handler, or rename the function",
-                    ProblemHighlightType.WARNING,
-                    AddHandleEventAnnotationFix(),
-                )
-            }
-
-            // @HandleEvent on a function that doesn't take a SkyHanniEvent
-            if (!isEventParam && !isEventReceiver && !hasExplicitEventType && !isPrimaryFunctionName && hasHandleEventAnnotation) {
-                holder.registerProblem(
-                    function.nameIdentifier ?: function,
-                    "Function should not be annotated with @HandleEvent if it does not take a SkyHanniEvent",
-                    ProblemHighlightType.GENERIC_ERROR,
-                )
-            }
+        class Redundant(annotationIndex: Int) : Context {
+            override val message = SkyHanniBundle.message("event.problem.redundantHandleEvent")
+            override val highlightType = ProblemHighlightType.GENERIC_ERROR
+            override val fixes: List<LocalQuickFix> = listOf(RemoveHandleEventFix(annotationIndex))
         }
     }
 
-    private class MakeEventHandlerPrivateFix : LocalQuickFix {
-        override fun getName() = "Make private"
-        override fun getFamilyName() = name
+    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): KtVisitor<*, *> =
+        namedFunctionVisitor { visitTargetElement(it, holder, isOnTheFly) }
 
-        override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-            (descriptor.psiElement.parent as? KtNamedFunction)?.addModifier(KtTokens.PRIVATE_KEYWORD)
+    override fun isApplicableByPsi(element: KtNamedFunction): Boolean =
+        element.containingClassOrObject is KtObjectDeclaration && element.name != null
+
+    override fun getApplicableRanges(element: KtNamedFunction): List<TextRange> = nameIdentifierRange(element)
+
+    override fun KaSession.prepareContext(element: KtNamedFunction): Context? {
+        val name = element.name ?: return null
+        val handleEvent = annotation(element, SkyHanniIds.HANDLE_EVENT)
+        val paramType = element.valueParameters.singleOrNull()?.symbol?.returnType?.takeIf { isSkyHanniEvent(it) }
+        val receiverType = element.symbol.receiverParameter?.returnType?.takeIf { isSkyHanniEvent(it) }
+        val explicitEventType = handleEvent?.classArguments("eventType", "eventTypes")
+            ?.any { it != SkyHanniIds.SKYHANNI_EVENT } == true
+        val primaryName = name in PrimaryFunctionIndex.all(element.project)
+        val isPrivate = element.symbol.visibility == KaSymbolVisibility.PRIVATE
+        val canBeHandler = !element.hasModifier(KtTokens.OPEN_KEYWORD) &&
+            !(element.hasModifier(KtTokens.OVERRIDE_KEYWORD) && element.symbol.visibility != KaSymbolVisibility.PUBLIC)
+
+        if (handleEvent != null) {
+            val handlesEvent = paramType != null || receiverType != null || explicitEventType || primaryName
+            val index = element.annotationEntries.indexOf(handleEvent.psi as? KtAnnotationEntry)
+            return Context.Redundant(index).takeUnless { handlesEvent }
+        }
+        val eventType = paramType ?: receiverType?.takeIf { element.valueParameters.isEmpty() && !isPrivate }
+        return when {
+            !canBeHandler -> null
+            eventType != null -> Context.MissingByType(classPsi(eventType)?.name ?: "event")
+            primaryName -> Context.MissingByName(
+                PrimaryFunctionIndex.get(element.project)[name]?.shortClassName?.asString() ?: name,
+            )
+            else -> null
         }
     }
 }
 
-private class AddHandleEventAnnotationFix : LocalQuickFix {
-    override fun getName() = "Annotate with @HandleEvent"
-    override fun getFamilyName() = name
+private class AddHandleEventFix : KotlinModCommandQuickFix<KtNamedFunction>() {
+    override fun getFamilyName() = SkyHanniBundle.message("event.fix.addHandleEvent")
 
-    override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-        AnnotationModificationHelper.addAnnotation(
-            descriptor.psiElement.parent as KtNamedFunction,
-            FqName(HANDLE_EVENT_FQN),
-            annotationInnerText = null,
-            useSiteTarget = null,
-            searchForExistingEntry = { null },
-            whiteSpaceText = " ",
-            addToExistingAnnotation = null,
-        )
+    override fun applyFix(project: Project, element: KtNamedFunction, updater: ModPsiUpdater) {
+        element.addAnnotation(SkyHanniIds.HANDLE_EVENT)
+    }
+}
+
+private class RemoveHandleEventFix(private val annotationIndex: Int) : KotlinModCommandQuickFix<KtNamedFunction>() {
+    override fun getFamilyName() = SkyHanniBundle.message("event.fix.removeHandleEvent")
+
+    override fun applyFix(project: Project, element: KtNamedFunction, updater: ModPsiUpdater) {
+        element.annotationEntries.getOrNull(annotationIndex)?.delete()
     }
 }
